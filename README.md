@@ -171,7 +171,7 @@ The second workflow is a bit of a hack.  In Python we can install libraries in
 editable mode, meaning that code changes to the _Python code_ in the project
 don't require a reinstall to be applied. 
 
-| Note: Everything below this point was from the original build process, and it has been left in for now in case it's needed. 
+> Note: Everything below this point was from the original build process, and it has been left in for now in case it's needed. 
 
 The only problem now, is that if we change the C++ code, we will need to 
 reinstall the library.  Fortunately, there is a way to circumvent this 
