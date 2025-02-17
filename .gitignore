@@ -6,6 +6,7 @@ _*/
 .idea/
 
 build/
+sk_build/
 examples/**
 !examples/CMakeLists.txt
 experiments/*/

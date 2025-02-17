@@ -1,11 +1,43 @@
 [project]
-requires-python = ">=3.6"
+name = "tweedledum"
+version = "1.2.0"  
+description = "A library for synthesizing and manipulating quantum circuits"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Bruno Schmitt", email = "bruno.schmitt@epfl.ch"},
+]
+requires-python = ">=3.7"  # Use 3.7+ for best compatibility
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Libraries"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+]
 
 [build-system]
-requires = [
-    "setuptools>=42",
-    "wheel",
-    "cmake>=3.18",
-    "ninja",
-    "scikit-build>=0.12.0",
-]
+requires = ["scikit-build-core"]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+cmake.minimum-version = "3.18"
+build-dir = "build_skbuild"  # Optional: Use a different build directory
