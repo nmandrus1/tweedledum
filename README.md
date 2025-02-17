@@ -125,14 +125,53 @@ Once the examples have been built you can run it:
 
 ## C++ and Python
 
+### Prerequisites:
+The following steps are part of a modernization effort to simplify and update the build process. 
+
+**Conda**: You need a working Conda installation (Miniconda or Anaconda) already installed and configured on your system. This is used for Python package management within the Nix-provided build environment. You should create an environment to be used for tweedledum development: 
+
+```
+conda create -n tweedledum-dev python=3.10
+conda install scikit-build-core
+```
+
+For now we need to install `scikit-build-core` for the build process, but later we can make this included in `pyproject.toml`.
+
+**Nix**: You need to have Nix installed. Follow the instructions on the NixOS website (https://nixos.org/download.html). Make sure to follow the instructions to set up your shell correctly after installation.
+
+### Building
+
+1. Clone git repository
+```
+git clone https://github.com/boschmitt/tweedledum.git
+cd tweedledum
+```
+
+2. Enter `nix-shell` environment by running `nix-shell` in the `tweedledum` directory
+```
+nix-shell
+```
+
+This should download the listed packages in `shell.nix` and create a new shell instance with the required dependencies on the `PATH`
+
+3. Activate conda environment *inside* nix shell. 
+```
+conda activate tweedledum-dev
+```
+
+4. Build `tweedledum`.
+```
+pip install -e ".[dev]" --no-build-isolation --no-deps
+```
+
+This step should install tweedledum as a python package in this environment in editable mode, so that now any changes made in the tweedlebum repository are automatically used by the environment. If changes to the C++ code are made be sure to rebuild. 
+
+
 The second workflow is a bit of a hack.  In Python we can install libraries in
 editable mode, meaning that code changes to the _Python code_ in the project
 don't require a reinstall to be applied. 
 
-If you want to install it in editable mode, you can do this with:
-```
-pip install -e .
-```
+| Note: Everything below this point was from the original build process, and it has been left in for now in case it's needed. 
 
 The only problem now, is that if we change the C++ code, we will need to 
 reinstall the library.  Fortunately, there is a way to circumvent this 
