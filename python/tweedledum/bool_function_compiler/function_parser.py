@@ -215,8 +215,9 @@ class FunctionParser(ast.NodeVisitor):
     def visit_Subscript(self, node):
         v_type, v_signals = self.visit(node.value)
         slice_ = self.visit(node.slice)
+        # FIXME: The v_types here need to be changes to proper bit width
         if isinstance(slice_, int):
-            return v_type, [v_signals[slice_]]
+            return (FunctionParser.types["BitVec"], 1), [v_signals[slice_]]
         if isinstance(slice_, slice):
             return v_type, v_signals[slice_]
         raise ParseError("Subscript must be an integer or a slice")
