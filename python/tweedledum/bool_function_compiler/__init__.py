@@ -4,6 +4,7 @@
 # -------------------------------------------------------------------------------
 from .bitvec import BitVec
 from .bool_function import BoolFunction
+from .loop_unroller import UnrollingFunctionParser
 
 from tweedledum.ir import Circuit
 from tweedledum.operators import X, H

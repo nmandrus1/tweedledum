@@ -280,9 +280,9 @@ class UnrollingFunctionParser(FunctionParser):
         ast.fix_missing_locations(unrolled_ast)
 
         # Get unrolled source
-        unrolled_source = astunparse.unparse(unrolled_ast)
+        self.unrolled_source = astunparse.unparse(unrolled_ast)
         print("DEBUG: Unrolled source:")
-        print(unrolled_source)
+        print(self.unrolled_source)
 
         # Make sure we've completely unrolled all loops
         # Check if there are any remaining For nodes
@@ -298,7 +298,7 @@ class UnrollingFunctionParser(FunctionParser):
             self._add_loop_variables(unrolled_ast)
 
         # Initialize parent with fully unrolled code
-        super().__init__(unrolled_source)
+        super().__init__(self.unrolled_source)
 
     def _extract_type_info(self, tree):
         """Extract type information from function signature"""

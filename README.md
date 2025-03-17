@@ -1,4 +1,4 @@
-<p align="center">
+p align="center">
   <img src="https://cdn.rawgit.com/boschmitt/tweedledum/master/tweedledum.svg" width="128" height="128" style="margin-right: 12pt"/>
 </p>
 <p align="center">

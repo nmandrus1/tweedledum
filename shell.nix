@@ -19,6 +19,5 @@ pkgs.mkShell {
     g++ --version
     echo "Make sure your conda environment is activated:"
     echo "  conda activate tweedledum-dev"
-    echo "Then run 'pip install -U pip setuptools wheel' and 'pip install -e \".[dev]\" --no-build-isolation --no-deps'"
   '';
 }

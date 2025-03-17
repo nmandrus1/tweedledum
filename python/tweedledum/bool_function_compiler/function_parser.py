@@ -213,14 +213,28 @@ class FunctionParser(ast.NodeVisitor):
         return ast.literal_eval(node)
 
     def visit_Subscript(self, node):
-        v_type, v_signals = self.visit(node.value)
-        slice_ = self.visit(node.slice)
-        # FIXME: The v_types here need to be changes to proper bit width
-        if isinstance(slice_, int):
-            return (FunctionParser.types["BitVec"], 1), [v_signals[slice_]]
-        if isinstance(slice_, slice):
-            return v_type, v_signals[slice_]
-        raise ParseError("Subscript must be an integer or a slice")
+        try:
+            v_type, v_signals = self.visit(node.value)
+            slice_ = self.visit(node.slice)
+            if isinstance(slice_, int):
+                # Return the correct type tuple format, not a BitVec object
+                return (FunctionParser.types["BitVec"], 1), [v_signals[slice_]]
+            if isinstance(slice_, slice):
+                return v_type, v_signals[slice_]
+            raise ParseError("Subscript must be an integer or a slice")
+        except Exception as _:
+            print(f"ERROR in visit_Subscript for node: {ast.dump(node)}")
+            raise
+
+    # def visit_Subscript(self, node):
+    #     v_type, v_signals = self.visit(node.value)
+    #     slice_ = self.visit(node.slice)
+    #     # FIXME: The v_types here need to be changes to proper bit width
+    #     if isinstance(slice_, int):
+    #         return (FunctionParser.types["BitVec"], 1), [v_signals[slice_]]
+    #     if isinstance(slice_, slice):
+    #         return v_type, v_signals[slice_]
+    #     raise ParseError("Subscript must be an integer or a slice")
 
     def visit_UnaryOp(self, node):
         result_type, result_signal = self.visit(node.operand)
