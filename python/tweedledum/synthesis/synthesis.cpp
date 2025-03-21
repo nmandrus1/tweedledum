@@ -10,6 +10,8 @@
 #include <tweedledum/IR/Circuit.h>
 #include <tweedledum/Synthesis/Synthesis.h>
 
+#include <mockturtle/algorithms/xag_optimization.hpp>
+
 void init_Synthesis(pybind11::module& module)
 {
     using namespace tweedledum;
@@ -155,6 +157,12 @@ void init_Synthesis(pybind11::module& module)
         py::overload_cast<mockturtle::xag_network const&, nlohmann::json const&>(&xag_synth),
         py::arg("xag"), py::arg("config") = nlohmann::json(),
         "Synthesize a quantum circuit from a XAG representation.");
+
+
+    module.def("xag_cleanup",
+        &mockturtle::cleanup_dangling<mockturtle::xag_network, mockturtle::xag_network>,
+        py::arg("xag"),
+        "Remove dangling nodes from XAG");
 
     module.def("xag_synth",
         py::overload_cast<Circuit&, std::vector<Qubit> const&, std::vector<Cbit> const&, mockturtle::xag_network const&, nlohmann::json const&>(&xag_synth),
