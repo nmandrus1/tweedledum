@@ -164,6 +164,11 @@ void init_Synthesis(pybind11::module& module)
         py::arg("xag"),
         "Remove dangling nodes from XAG");
 
+    module.def("xag_exact_linear_resynthesis_optimization",
+        py::overload_cast<mockturtle::xag_network const&, uint32_t>(&mockturtle::exact_linear_resynthesis_optimization<>),
+        py::arg("xag"), py::arg("conflict_limit") = 0u,
+        "Optimizes XOR gates by exact linear network resynthesis.");
+
     module.def("xag_synth",
         py::overload_cast<Circuit&, std::vector<Qubit> const&, std::vector<Cbit> const&, mockturtle::xag_network const&, nlohmann::json const&>(&xag_synth),
         py::arg("circuit"), py::arg("qubits"), py::arg("cbits"), py::arg("xag"), py::arg("config") = nlohmann::json(),
