@@ -5,8 +5,12 @@
 import _ast
 import ast
 
-from .bitvec import BitVec
+import astunparse
+
 from tweedledum.classical import LogicNetwork
+
+from .bitvec import BitVec
+from .meta_fns import _global_generators
 
 
 class ParseError(Exception):
@@ -89,6 +93,9 @@ class FunctionParser(ast.NodeVisitor):
         return (FunctionParser.types["BitVec"], 1), result_signal
 
     def visit_Call(self, node):
+        if node.func.id in _global_generators:
+            return None
+
         type_ = FunctionParser.types[node.func.id]
         if len(node.args) == 1:
             value = ast.literal_eval(node.args[0])
