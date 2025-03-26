@@ -7,6 +7,9 @@ from .bool_function import BoolFunction
 from .loop_unroller import UnrollingFunctionParser
 from .meta_inliner import TweedledumMetaInliner, _global_generators
 
+# Compiler 2.0
+from .decorators import circuit_input
+
 from tweedledum.ir import Circuit
 from tweedledum.operators import X, H
 from tweedledum.synthesis import (
