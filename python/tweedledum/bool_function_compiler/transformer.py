@@ -3,8 +3,6 @@ import copy
 import inspect
 from typing import Any, Dict, Optional, Set
 
-import astunparse
-
 from .classical_expression_evaluator import ClassicalExpressionEvaluator
 from .variable_classifier import VariableClassifier
 
@@ -61,26 +59,19 @@ class QuantumCircuitTransformer(ast.NodeTransformer):
         return new_tree
 
     def visit_FunctionDef(self, node):
-        """Transform the function definition."""
-        # Keep only quantum parameters
+        """Transform the function definition to include quantum parameters."""
+        # Create new argument list that keeps quantum parameters
         new_args = []
-        for arg in node.args.args:
-            if arg.arg in self.quantum_params:
-                param_value = self.quantum_params[arg.arg]
 
-                # Create annotation based on parameter type
-                if hasattr(param_value, "_length"):
-                    # This is a BitVec - add size annotation
-                    annotation = ast.Call(
-                        func=ast.Name(id="BitVec", ctx=ast.Load()),
-                        args=[ast.Constant(value=param_value._length)],
-                        keywords=[],
-                    )
-                    new_arg = ast.arg(arg=arg.arg, annotation=annotation)
-                    new_args.append(new_arg)
-                else:
-                    # Use original annotation
-                    new_args.append(arg)
+        for arg in node.args.args:
+            print(arg)
+
+        print(self.quantum_params)
+        # Check if parameters match quantum_params
+        for name, value in self.quantum_params.items():
+            # Keep quantum parameters in the signature
+            arg = ast.arg(arg=name, annotation=ast.Constant(value=value))
+            new_args.append(arg)
 
         # Update function signature
         node.args.args = new_args
@@ -88,20 +79,7 @@ class QuantumCircuitTransformer(ast.NodeTransformer):
         # Process function body
         node.body = [self.visit(stmt) for stmt in node.body]
 
-        # If we have inlined functions, insert their definitions at the beginning
-        if self.inlined_functions:
-            # Add variable declarations for inlined function results
-            declarations = []
-            for func_name, result_var, func_body in self.inlined_functions:
-                # Extract the body of the transformed function
-                if isinstance(func_body, ast.Module):
-                    func_def = func_body.body[0]
-                    declarations.extend(func_def.body)
-
-            # Insert declarations at the beginning of the function body
-            node.body = declarations + node.body
-
-        # Remove decorators
+        # remove decorators
         node.decorator_list = []
 
         return node
@@ -382,48 +360,3 @@ class FunctionCallHandler:
 
         # 6. Return a reference to the result variable
         return ast.Name(id=result_var, ctx=ast.Load())
-
-
-def transform_function(func, classical_inputs, quantum_params):
-    """
-    Transform a mixed quantum-classical function into a pure quantum function.
-
-    Args:
-        func: The function to transform
-        classical_inputs: Dictionary of classical parameter values
-        quantum_params: Dictionary of quantum parameter specifications
-
-    Returns:
-        A new function with only quantum inputs
-    """
-    # Extract source code
-    source = inspect.getsource(func)
-
-    # Parse into AST
-    tree = ast.parse(source.strip())
-
-    # Create transformer
-    transformer = QuantumCircuitTransformer(
-        classical_inputs=classical_inputs,
-        quantum_params=quantum_params,
-        globals_dict={},
-        used_names=set(),
-    )
-
-    # Transform the AST
-    quantum_tree = transformer.transform(tree)
-
-    # Generate new function code
-    new_source = ast.unparse(quantum_tree)
-
-    # Compile the transformed function
-    namespace = {"BitVec": func.__globals__["BitVec"]}
-
-    # Execute code to define function
-    exec(new_source, func.__globals__, namespace)
-
-    # Extract the function name
-    func_name = quantum_tree.body[0].name
-
-    # Return the specialized function
-    return new_source, namespace[func_name]

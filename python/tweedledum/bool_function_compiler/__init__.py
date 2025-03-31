@@ -5,7 +5,7 @@
 from .bitvec import BitVec
 from .bool_function import BoolFunction
 from .loop_unroller import UnrollingFunctionParser
-from .meta_inliner import TweedledumMetaInliner, _global_generators
+from .meta_inliner import TweedledumMetaInliner
 
 # Compiler 2.0
 from .decorators import circuit_input

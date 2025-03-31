@@ -257,13 +257,14 @@ class FunctionParser(ast.NodeVisitor):
         raise ParseError("Unsupported unary operator")
 
     def _visit_annotation_Call(self, node):
+        # this only works for BitVec arguments
         type_ = FunctionParser.types[node.func.id]
-        if len(node.args) == 1:
-            size = ast.literal_eval(node.args[0])
-            if not isinstance(size, int):
-                ParseError("Size must be an integer")
-            return type_, size
-        raise ParseError("Invalid number of arguments")
+        # if len(node.args) == 1:
+        size = ast.literal_eval(node.args[0])
+        if not isinstance(size, int):
+            ParseError("Size must be an integer")
+        return type_, size
+        # raise ParseError("Invalid number of arguments")
 
     def _const_BitVec(self, length, value=None):
         if value == None:

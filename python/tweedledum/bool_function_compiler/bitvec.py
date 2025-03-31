@@ -95,13 +95,13 @@ class BitVec(object):
     def __len__(self):
         return self._length
 
-    def __bool__(self):
-        if self._length > 1:
-            raise TypeError(
-                "[BitVec] A BitVec of length bigger than one "
-                "cannot be converted to a Boolean value"
-            )
-        return bool(self._value)
+    # def __bool__(self):
+    #     if self._length > 1:
+    #         raise TypeError(
+    #             "[BitVec] A BitVec of length bigger than one "
+    #             "cannot be converted to a Boolean value"
+    #         )
+    #     return bool(self._value)
 
     def __invert__(self):
         return BitVec(self._length, ~self._value & (1 << self._length) - 1)

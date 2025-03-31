@@ -9,17 +9,6 @@ class SortPairNode:
         self.low = low
 
 
-import ast
-
-
-class SortPairNode:
-    """Node for sorting network that tracks high and low values."""
-
-    def __init__(self, high, low):
-        self.high = high
-        self.low = low
-
-
 def generate_sorting_network(input_vec, output_name, k_node):
     """
     Generate sorting network AST statements with intermediate variables.
@@ -32,8 +21,8 @@ def generate_sorting_network(input_vec, output_name, k_node):
 
     Args:
         input_vec (ast.Name): AST node for input BitVec variable
-        output_name (str): Name to use for the output variable
-        k_node (ast.Constant): AST node for the size constant
+        output_name (ast.Constant): AST node for the output variable name
+        k_node (Union[ast.Name, ast.Constant]): AST node for the size - can be variable or constant
 
     Returns:
         list: List of AST statement nodes
@@ -42,18 +31,29 @@ def generate_sorting_network(input_vec, output_name, k_node):
     if not isinstance(input_vec, ast.Name):
         raise ValueError("Input must be a variable name")
 
-    if not isinstance(output_name, ast.Constant) and not isinstance(
-        output_name.value, str
-    ):
+    if not isinstance(output_name, ast.Constant):
         raise ValueError("Output name must be a constant string")
 
     output_var_name = output_name.value
 
-    # Extract size value from AST node
+    # Extract size value if it's a constant, otherwise use the variable directly
     if isinstance(k_node, ast.Constant):
         k = k_node.value
+    elif isinstance(k_node, ast.Name):
+        # We'll need to get the value at runtime through the variable
+        k_name = k_node.id
+        # Look for this variable in the classical_inputs from the transformer
+        if (
+            hasattr(generate_sorting_network, "classical_inputs")
+            and k_name in generate_sorting_network.classical_inputs
+        ):
+            k = generate_sorting_network.classical_inputs[k_name]
+        else:
+            raise ValueError(
+                f"Unable to determine size from variable {k_name}. Make sure it's a classical input."
+            )
     else:
-        raise ValueError("k must be a constant integer value")
+        raise ValueError("k must be either a constant or a variable name")
 
     input_name = input_vec.id
 
@@ -61,9 +61,7 @@ def generate_sorting_network(input_vec, output_name, k_node):
     def make_subscript(name, index):
         return ast.Subscript(
             value=ast.Name(id=name, ctx=ast.Load()),
-            slice=ast.Constant(value=index)
-            if hasattr(ast, "Constant")
-            else ast.Index(value=ast.Num(n=index)),
+            slice=ast.Constant(value=index),
             ctx=ast.Load(),
         )
 
@@ -136,9 +134,11 @@ def generate_sorting_network(input_vec, output_name, k_node):
     ]
 
     # Step 5: Create separate variables for each bit to use in return statements
-    # This isolates the signals from any subscript-related issues
-    for index in [k // 2 - 1, k // 2]:
-        bit_var_name = f"sorted_bit_{index}"
-        statements.append(make_assignment(bit_var_name, outputs[index]))
+    # Calculate middle indices dynamically based on k
+    middle_indices = [k // 2 - 1, k // 2] if k > 1 else [0]
+    for idx, bit in enumerate(middle_indices):
+        if 0 <= idx < len(outputs):  # Ensure index is valid
+            bit_var_name = f"sorted_bit_{idx}"
+            statements.append(make_assignment(bit_var_name, outputs[idx]))
 
     return statements
