@@ -139,6 +139,6 @@ def generate_sorting_network(input_vec, output_name, k_node):
     for idx, bit in enumerate(middle_indices):
         if 0 <= idx < len(outputs):  # Ensure index is valid
             bit_var_name = f"sorted_bit_{idx}"
-            statements.append(make_assignment(bit_var_name, outputs[idx]))
+            statements.append(make_assignment(bit_var_name, outputs[bit]))
 
     return statements
