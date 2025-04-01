@@ -128,22 +128,13 @@ Once the examples have been built you can run it:
 ### Prerequisites:
 The following steps are part of a modernization effort to simplify and update the build process. 
 
-**Conda**: You need a working Conda installation (Miniconda or Anaconda) already installed and configured on your system. This is used for Python package management within the Nix-provided build environment. You should create an environment to be used for tweedledum development: 
-
-```
-conda create -n tweedledum-dev python=3.10
-conda install scikit-build-core
-```
-
-For now we need to install `scikit-build-core` for the build process, but later we can make this included in `pyproject.toml`.
-
 **Nix**: You need to have Nix installed. Follow the instructions on the NixOS website (https://nixos.org/download.html). Make sure to follow the instructions to set up your shell correctly after installation.
 
 ### Building
 
 1. Clone git repository
 ```
-git clone https://github.com/boschmitt/tweedledum.git
+git clone https://github.com/nmandrus1/tweedledum.git
 cd tweedledum
 ```
 
@@ -154,14 +145,15 @@ nix-shell
 
 This should download the listed packages in `shell.nix` and create a new shell instance with the required dependencies on the `PATH`
 
-3. Activate conda environment *inside* nix shell. 
+3. Use included `dev.sh` script to manage conda environment. 
 ```
-conda activate tweedledum-dev
+$ chmod +x dev.sh
+$ ./dev.sh setup
 ```
 
 4. Build `tweedledum`.
 ```
-pip install -e ".[dev]" --no-build-isolation --no-deps
+$ ./dev.sh debug
 ```
 
 This step should install tweedledum as a python package in this environment in editable mode, so that now any changes made in the tweedlebum repository are automatically used by the environment. If changes to the C++ code are made be sure to rebuild. 

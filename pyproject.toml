@@ -28,10 +28,16 @@ classifiers = [
     "Topic :: Software Development :: Libraries"
 ]
 
+
+dependencies = [
+    "qiskit"
+]
+
 [project.optional-dependencies]
 dev = [
   "pytest",
   "pytest-cov",
+  "scikit-build-core"
 ]
 
 [build-system]
@@ -40,4 +46,13 @@ build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
 cmake.minimum-version = "3.18"
-build-dir = "build_skbuild"  # Optional: Use a different build directory
+cmake.verbose = false
+build-dir = "build" 
+wheel.install-dir = "python"
+
+# editable.rebuild = true
+editable.mode = "redirect"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
