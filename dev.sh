@@ -1,4 +1,3 @@
-
 #!/bin/bash
 set -e  # Exit on error
 
@@ -8,7 +7,6 @@ function help() {
   echo "Usage: ./dev.sh COMMAND"
   echo ""
   echo "Commands:"
-  echo "  setup      - Create and configure conda environment"
   echo "  build      - Build the project in development mode"
   echo "  debug      - Build with debug symbols"
   echo "  test       - Run the test suite"
@@ -24,24 +22,14 @@ fi
 
 # Command handling
 case "$1" in
-  setup)
-    echo "Creating conda environment..."
-    conda create -n tweedledum-dev python=3.10 -y
-    conda activate tweedledum-dev
-    # Install scikit-build-core and other dependencies first
-    pip install scikit-build-core>=0.5.0 pytest numpy
-    ;;
-    
   build)
     echo "Building in development mode..."
-    # Pass the CMake variables directly as environment variables
     CMAKE_ARGS="-DTWEEDLEDUM_PYBINDS=ON -DTWEEDLEDUM_EXAMPLES=OFF -DTWEEDLEDUM_TESTS=OFF" \
     pip install -e .
     ;;
     
   debug)
     echo "Building with debug symbols..."
-    # Pass the CMake variables directly as environment variables
     CMAKE_ARGS="-DTWEEDLEDUM_PYBINDS=ON -DTWEEDLEDUM_EXAMPLES=OFF -DTWEEDLEDUM_TESTS=OFF -DCMAKE_BUILD_TYPE=Debug" \
     pip install -e .
     ;;

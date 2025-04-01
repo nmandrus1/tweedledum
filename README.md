@@ -128,6 +128,8 @@ Once the examples have been built you can run it:
 ### Prerequisites:
 The following steps are part of a modernization effort to simplify and update the build process. 
 
+**Conda**: You will need a conda environment. 
+
 **Nix**: You need to have Nix installed. Follow the instructions on the NixOS website (https://nixos.org/download.html). Make sure to follow the instructions to set up your shell correctly after installation.
 
 ### Building
@@ -145,10 +147,10 @@ nix-shell
 
 This should download the listed packages in `shell.nix` and create a new shell instance with the required dependencies on the `PATH`
 
-3. Use included `dev.sh` script to manage conda environment. 
+3. Setup and activate conda environment. 
 ```
-$ chmod +x dev.sh
-$ ./dev.sh setup
+conda create -n tweedledum-dev python=3.10 scikit-build-core qiskit -y
+conda activate tweedledum-dev
 ```
 
 4. Build `tweedledum`.
