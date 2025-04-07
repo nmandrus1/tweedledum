@@ -31,7 +31,9 @@ class TweedledumMetaInliner(ast.NodeTransformer):
                 generator_func.classical_inputs = self.classical_inputs
 
                 # Call the generator with the AST node arguments
-                statements = generator_func(*node.value.args)
+                statements = generator_func(
+                    *node.value.args, classical_inputs=self.classical_inputs
+                )
 
                 # If we got a valid list of statements, return them
                 if statements and isinstance(statements, list):

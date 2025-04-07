@@ -2,6 +2,8 @@
 # Part of Tweedledum Project.  This file is distributed under the MIT License.
 # See accompanying file /LICENSE for details.
 # -------------------------------------------------------------------------------
+import logging
+
 from tweedledum.ir import Circuit, Qubit, Cbit, rotation_angle
 from tweedledum import operators as Op
 
@@ -79,6 +81,11 @@ _TO_QISKIT_GATE = {
     "ising.ryy": RYYGate,
     "ising.rzz": RZZGate,
 }
+
+_logger = logging.getLogger("Converter")
+logging.basicConfig(
+    level=logging.DEBUG, format="%(name)s - %(levelname)s - %(message)s"
+)
 
 
 def _convert_qiskit_operator(gate):
@@ -171,6 +178,9 @@ def _to_qc(circuit):
         qiskit_qc.add_register(circuit.num_qubits(), circuit.num_cbits())
     else:
         qiskit_qc.add_register(circuit.num_qubits())
+
+    for instruction in circuit:
+        _logger.debug(str(instruction.kind()))
 
     for instruction in circuit:
         gate = _convert_tweedledum_op(instruction)
