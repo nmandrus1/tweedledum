@@ -30,7 +30,8 @@ classifiers = [
 
 
 dependencies = [
-    "qiskit"
+    "qiskit",
+    "astunparse"
 ]
 
 [project.optional-dependencies]

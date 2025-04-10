@@ -7,39 +7,30 @@ pkgs.mkShell {
     pkgs.ninja
     pkgs.gcc11
     pkgs.pkg-config
-    
-    # Libraries
     pkgs.eigen
-    
-    # Python build tools - avoid specific Python packages that might cause conflicts
-    pkgs.python310
   ];
 
-  # Environment setup
   shellHook = ''
     # Set up C++ compiler
     export CC="${pkgs.gcc11}/bin/gcc"
     export CXX="${pkgs.gcc11}/bin/g++"
     
     # Configure cmake arguments
-    export CMAKE_ARGS="-DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX"
+    export CMAKE_ARGS="-DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTWEEDLEDUM_PYBINDS=ON -DTWEEDLEDUM_EXAMPLES=OFF -DTWEEDLEDUM_TESTS=OFF"
     
-    # Add project root to PYTHONPATH
-    export PYTHONPATH=$PWD/python:$PYTHONPATH
-    
-    # If conda exists, activate environment
-    if command -v conda &> /dev/null; then
-      source "$(conda info --base)/etc/profile.d/conda.sh"
-      conda activate tweedledum-dev 2>/dev/null || echo "Run: conda create -n tweedledum-dev python=3.10"
+    # Use conda's Python if conda is activated
+    if [ -n "$CONDA_PREFIX" ]; then
+      export PATH="$CONDA_PREFIX/bin:$PATH"
+      export PYTHONPATH="$CONDA_PREFIX/lib/python*/site-packages:$PYTHONPATH"
     fi
     
-    echo "Tweedledum Development Environment"
-    echo "=================================="
+    echo "Tweedledum C++ Development Environment Ready"
+    echo "-------------------------------------------"
+    echo "GCC: $(gcc --version | head -n1)"
+    echo "Python: $(python --version)"
     echo ""
-    echo "Development commands:"
-    echo "  - Install in development mode:  pip install -e ."
-    echo "  - Build with debug symbols:     pip install -e . --config-settings=cmake.build-type=Debug"
-    echo "  - Run tests:                    pytest"
+    echo "To build in development mode:"
+    echo "  pip install -e ."
     echo ""
   '';
 }

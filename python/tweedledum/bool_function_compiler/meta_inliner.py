@@ -107,7 +107,7 @@ def transform_function_with_meta(
 
     # Generate new function code
     new_source = ast.unparse(quantum_tree)
-    print(f"\nGenerated quantum-only function:\n{new_source}")
+    # print(f"\nGenerated quantum-only function:\n{new_source}")
 
     # Compile the transformed function
     namespace = {

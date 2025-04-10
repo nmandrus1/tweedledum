@@ -63,10 +63,6 @@ class QuantumCircuitTransformer(ast.NodeTransformer):
         # Create new argument list that keeps quantum parameters
         new_args = []
 
-        for arg in node.args.args:
-            print(arg)
-
-        print(self.quantum_params)
         # Check if parameters match quantum_params
         for name, value in self.quantum_params.items():
             # Keep quantum parameters in the signature
