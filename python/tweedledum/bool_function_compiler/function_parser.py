@@ -61,11 +61,82 @@ class FunctionParser(ast.NodeVisitor):
         if len(cache) != 0:
             raise ParseError("Argument type is needed for %s" % cache)
 
+    # def visit_Assign(self, node):
+    #     """When assign, the scope needs to be updated with the right type"""
+    #     value_type, value_signals = self.visit(node.value)
+    #     for target in node.targets:
+    #         self._symbol_table[target.id] = (value_type, value_signals)
+    #     return (value_type, value_signals)
+
     def visit_Assign(self, node):
-        """When assign, the scope needs to be updated with the right type"""
+        """When assign, the scope needs to be updated with the right type.
+        Handles assignment to both simple variables and single BitVec elements.
+        """
+        # Visit the right-hand side value first to get its signals and type
         value_type, value_signals = self.visit(node.value)
+
         for target in node.targets:
-            self._symbol_table[target.id] = (value_type, value_signals)
+            if isinstance(target, ast.Name):
+                # --- Standard variable assignment ---
+                # Update symbol table to map variable name to the new signals
+                self._symbol_table[target.id] = (value_type, value_signals)
+                # --- End Standard variable assignment ---
+
+            elif isinstance(target, ast.Subscript):
+                # --- BitVec single element assignment ---
+                if not isinstance(target.value, ast.Name):
+                    # Ensure the base of the subscript is a variable name
+                    raise ParseError(
+                        f"Cannot assign to subscript of non-variable: {astunparse.unparse(target.value)}"
+                    )
+
+                base_var_name = target.value.id
+                if base_var_name not in self._symbol_table:
+                    raise ParseError(
+                        f"Assigning to subscript of unknown variable: {base_var_name}"
+                    )
+
+                # Get current signals and type info for the base BitVec
+                base_type_info, current_signals = self._symbol_table[base_var_name]
+                base_type, base_length = base_type_info  # Unpack type and length
+
+                # Determine the target index
+                target_index_or_slice = self.visit(target.slice)
+
+                # Create a mutable copy of the current signals
+                new_signal_list = list(current_signals)
+
+                if isinstance(target_index_or_slice, int):
+                    # --- Assignment to a single index ---
+                    target_index = target_index_or_slice
+                    if not (0 <= target_index < base_length):
+                        raise ParseError(
+                            f"Index {target_index} out of bounds for {base_var_name} of length {base_length}"
+                        )
+                    if len(value_signals) != 1:
+                        raise ParseError(
+                            f"Assigning multiple signals ({len(value_signals)}) to single index {target_index} of {base_var_name}"
+                        )
+
+                    # Replace the signal at the target index (Python list index matches BitVec LSB index)
+                    new_signal_list[target_index] = value_signals[0]
+                    # --- End Assignment to a single index ---
+
+                else:
+                    # Only integer indices are supported now
+                    raise ParseError(
+                        f"Unsupported type {type(target_index_or_slice)} for BitVec assignment index. Only integer indices are supported."
+                    )
+
+                # Update symbol table for the base variable name to point to the *new* list of signals
+                self._symbol_table[base_var_name] = (base_type_info, new_signal_list)
+                # --- End BitVec single element assignment ---
+
+            else:
+                # Handle other potential target types if necessary, or raise error
+                raise ParseError(f"Unsupported assignment target type: {type(target)}")
+
+        # Return the type and signals of the value that was assigned
         return (value_type, value_signals)
 
     def visit_BinOp(self, node):
