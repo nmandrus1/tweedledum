@@ -4,7 +4,6 @@
 # -------------------------------------------------------------------------------
 from .bitvec import BitVec
 from .bool_function import BoolFunction
-from .loop_unroller import UnrollingFunctionParser
 from .meta_inliner import TweedledumMetaInliner
 
 # Compiler 2.0

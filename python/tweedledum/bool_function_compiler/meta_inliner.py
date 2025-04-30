@@ -1,5 +1,10 @@
 import ast
 import copy
+import inspect
+
+from .transformer import QuantumCircuitTransformer
+from .loop_unroller import ClassicalLoopUnroller
+from .bitvec import BitVec
 
 
 class TweedledumMetaInliner(ast.NodeTransformer):
@@ -58,7 +63,10 @@ def transform_function_with_meta(
     func, classical_inputs, quantum_params, generator_funcs
 ):
     """
-    Transform a function with meta-function calls and classical/quantum separation.
+    Transform a function in 3 passes:
+    1) Inline meta-funcs,
+    2) Unroll classical loops,
+    3) Separate classical/quantum logic.
 
     Args:
         func: The function to transform
@@ -69,59 +77,49 @@ def transform_function_with_meta(
     Returns:
         Transformed function with quantum parameters
     """
-    import ast
-    import inspect
-
-    from .transformer import QuantumCircuitTransformer
-
-    # Extract source code
+    # --- Stage 0: Preparation ---
     source = inspect.getsource(func)
-
-    # Parse into AST
     tree = ast.parse(source.strip())
+    tree_copy = copy.deepcopy(tree)  # Work on a copy
 
-    # First apply meta-function inlining with access to classical inputs
+    # --- Stage 1: Meta-Function Inlining ---
     meta_inliner = TweedledumMetaInliner(
         generator_funcs=generator_funcs, classical_inputs=classical_inputs
     )
-
-    # Make a deep copy to avoid modifying the original AST
-    tree_copy = copy.deepcopy(tree)
-
-    # Apply the meta-inliner
     inlined_tree = meta_inliner.visit(tree_copy)
-
-    # Fix line numbers and context references
     ast.fix_missing_locations(inlined_tree)
 
-    # Now apply classical/quantum separation
+    # --- Stage 2: Classical Loop Unrolling --- # <-- NEW STAGE
+    loop_unroller = ClassicalLoopUnroller(classical_inputs=classical_inputs)
+    unrolled_tree = loop_unroller.visit(inlined_tree)  # Visit the *inlined* tree
+    ast.fix_missing_locations(unrolled_tree)
+
+    # --- Stage 3: Classical/Quantum Separation ---
+    # This transformer now receives an AST with loops already unrolled
     transformer = QuantumCircuitTransformer(
         classical_inputs=classical_inputs,
         quantum_params=quantum_params,
-        globals_dict={},
+        globals_dict={},  # Pass necessary globals if needed, e.g., for evaluator
         used_names=set(),
     )
+    # Pass the *unrolled* tree to the final transformer
+    quantum_tree = transformer.transform(unrolled_tree)  # Use unrolled_tree
 
-    # Transform the AST after inlining
-    quantum_tree = transformer.transform(inlined_tree)
-
-    # Generate new function code
+    # --- Stage 4: Code Generation & Compilation ---
     new_source = ast.unparse(quantum_tree)
-    # print(f"\nGenerated quantum-only function:\n{new_source}")
 
-    # Compile the transformed function
     namespace = {
-        "BitVec": func.__globals__["BitVec"],
-        # Make sure any other necessary functions/classes are available
+        "BitVec": BitVec,  # Use directly imported BitVec
+        # Add any other necessary items here
     }
+    # Prepare globals for exec carefully
+    exec_globals = {}  # Start clean? Or copy select items from func.__globals__?
+    # Using func.__globals__ can be risky.
+    # Might need specific imports like math if used.
+    exec(new_source, exec_globals, namespace)  # Provide globals if needed
 
-    # Execute code to define function
-    exec(new_source, func.__globals__, namespace)
-
-    # Extract the function name
     func_name = quantum_tree.body[0].name
-
-    # Return the specialized function
+    # Return the source string AND the compiled function object
     return new_source, namespace[func_name]
 
 

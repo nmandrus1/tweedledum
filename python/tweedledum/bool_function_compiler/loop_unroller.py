@@ -1,328 +1,158 @@
+# bool_function_compiler/loop_unroller.py
 import ast
 import copy
+from typing import Any, Dict, List, Union
 
-import astunparse
-
-from .bitvec import BitVec
-from .function_parser import FunctionParser
+# We need the evaluator to resolve range arguments and potentially iterables
+from .classical_expression_evaluator import ClassicalExpressionEvaluator
 
 
-class TweedledumLoopUnroller(ast.NodeTransformer):
+# --- LoopVariableReplacer (Helper for the Unroller) ---
+# This version substitutes variables with Constants holding their values
+class LoopVariableReplacer(ast.NodeTransformer):
     """
-    AST transformer for unrolling loops in Tweedledum quantum functions.
-
-    This unroller works with Tweedledum's type system, extracting size
-    information from BitVec parameters to unroll loops that iterate over
-    their length.
+    Replaces references to loop variables with their constant values during unrolling.
+    Handles non-integer constants.
     """
 
-    def __init__(self, symbol_table=None):
-        """
-        Initialize with a symbol table from Tweedledum's parser.
-
-        Args:
-            symbol_table: Dictionary mapping variable names to their types and sizes
-                         Format: {var_name: ((type, size), signals)}
-        """
-        self.symbol_table = symbol_table or {}
-        super().__init__()
-
-    def visit_For(self, node):
-        """
-        Visits For nodes and unrolls them if they iterate over a known range.
-
-        Handles:
-        1. Static ranges: for i in range(5)
-        2. BitVec length ranges: for i in range(len(bv))
-        """
-        # Check if we can unroll this loop
-        if not self._is_range_call(node.iter):
-            return node
-
-        # Extract range parameters
-        range_args = self._extract_range_args(node.iter)
-        if not range_args:
-            return node
-
-        start, stop, step = range_args
-        loop_var = node.target.id
-
-        # Process each iteration
-        unrolled_body = []
-        for i in range(start, stop, step):
-            # Create substitution map for this iteration
-            substitutions = {loop_var: i}
-
-            # Process each statement in the loop body
-            for stmt in node.body:
-                # Clone statement to avoid modifying original
-                stmt_copy = copy.deepcopy(stmt)
-
-                # Apply variable substitution
-                substituter = VariableSubstituter(substitutions, self.symbol_table)
-                transformed_stmt = substituter.visit(stmt_copy)
-
-                # Recursively process any nested loops AFTER substitution
-                # This ensures substitutions are applied to nested loop bounds
-                processed_stmt = self.visit(transformed_stmt)
-
-                # Add statement or unrolled nested loop to result
-                if isinstance(processed_stmt, list):
-                    unrolled_body.extend(processed_stmt)
-                else:
-                    unrolled_body.append(processed_stmt)
-
-        return unrolled_body
-
-    def _is_range_call(self, node):
-        """Check if a node is a call to range()"""
-        return (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "range"
-        )
-
-    def _extract_range_args(self, range_call):
-        """
-        Extract start, stop, and step values from a range() call.
-
-        Handles:
-        - range(stop)
-        - range(start, stop)
-        - range(start, stop, step)
-        - range(len(bv)) where bv is a BitVec
-        """
-        args = range_call.args
-
-        # Try to evaluate each argument to a constant
-        evaluated_args = []
-
-        for arg in args:
-            # If argument is a len() call, handle specially
-            if self._is_len_call(arg):
-                bitvec_size = self._get_bitvec_size(arg.args[0])
-                if bitvec_size is not None:
-                    evaluated_args.append(bitvec_size)
-                    continue
-
-            # Otherwise try to evaluate the expression
-            substituter = VariableSubstituter({}, self.symbol_table)
-            value = substituter._evaluate_expr(arg)
-            if value is not None:
-                evaluated_args.append(value)
-            else:
-                return None  # Can't evaluate all arguments
-
-        # Handle different number of arguments
-        if len(evaluated_args) == 1:
-            return 0, evaluated_args[0], 1
-        elif len(evaluated_args) == 2:
-            return evaluated_args[0], evaluated_args[1], 1
-        elif len(evaluated_args) == 3:
-            return evaluated_args[0], evaluated_args[1], evaluated_args[2]
-
-        return None
-
-    def _is_len_call(self, node):
-        """Check if a node is a call to len()"""
-        return (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "len"
-        )
-
-    def _get_bitvec_size(self, node):
-        """
-        Get the size of a BitVec variable from the symbol table.
-
-        Args:
-            node: The AST node representing the BitVec variable
-
-        Returns:
-            int: The size of the BitVec, or None if not found
-        """
-        if isinstance(node, ast.Name) and node.id in self.symbol_table:
-            # In Tweedledum's symbol table format: {var: ((type, size), signals)}
-            var_info = self.symbol_table[node.id]
-            if var_info and var_info[0] and len(var_info[0]) >= 2:
-                return var_info[0][1]  # Extract size from (type, size) tuple
-        return None
-
-
-class VariableSubstituter(ast.NodeTransformer):
-    def __init__(self, substitutions, symbol_table=None):
+    def __init__(self, substitutions: Dict[str, Any]):
         self.substitutions = substitutions
-        self.symbol_table = symbol_table or {}
         super().__init__()
-
-    def _evaluate_expr(self, expr_node):
-        """Evaluate an expression node to a constant if possible"""
-        # Handle constants directly
-        if isinstance(expr_node, ast.Constant):
-            return expr_node.value
-
-        # Handle names that are in our substitution table
-        if isinstance(expr_node, ast.Name) and expr_node.id in self.substitutions:
-            return self.substitutions[expr_node.id]
-
-        # Handle binary operations
-        if isinstance(expr_node, ast.BinOp):
-            left_val = self._evaluate_expr(expr_node.left)
-            right_val = self._evaluate_expr(expr_node.right)
-
-            if left_val is not None and right_val is not None:
-                try:
-                    return self._evaluate_binop(left_val, expr_node.op, right_val)
-                except:
-                    pass
-
-        # Handle len() calls
-        if self._is_len_call(expr_node) and len(expr_node.args) == 1:
-            arg_node = expr_node.args[0]
-            if isinstance(arg_node, ast.Name) and arg_node.id in self.symbol_table:
-                var_info = self.symbol_table[arg_node.id]
-                if var_info and var_info[0] and len(var_info[0]) >= 2:
-                    return var_info[0][1]  # Return size
-
-        return None  # Can't evaluate to a constant
-
-    def _is_len_call(self, node):
-        """Check if a node is a call to len()"""
-        return (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "len"
-        )
 
     def visit_Name(self, node):
-        if isinstance(node.ctx, ast.Load) and node.id in self.substitutions:
-            # Replace with constant
-            const_node = ast.Constant(value=self.substitutions[node.id])
-            ast.copy_location(const_node, node)
-            return const_node
+        """Replace loop variable references with constant values."""
+        if node.id in self.substitutions and isinstance(node.ctx, ast.Load):
+            new_node = ast.Constant(value=self.substitutions[node.id])
+            ast.copy_location(new_node, node)
+            return new_node
         return node
 
-    def visit_Call(self, node):
-        # Keep len() calls but process their arguments
-        if isinstance(node.func, ast.Name) and node.func.id == "len":
-            # Don't replace len() itself, but still process its arguments
-            node.args = [self.visit(arg) for arg in node.args]
-            return node
 
-        # For other calls, process arguments
-        node.args = [self.visit(arg) for arg in node.args]
-        return node
-
-    def visit_BinOp(self, node):
-        # Track if this expression contains any loop variables
-        has_loop_vars = self._contains_loop_vars(node)
-
-        # Visit left and right sides
-        left = self.visit(node.left)
-        right = self.visit(node.right)
-
-        # Try direct evaluation
-        result_val = self._evaluate_expr(node)
-        if result_val is not None and has_loop_vars:
-            # If we got a value and it contains loop variables, replace with constant
-            const_node = ast.Constant(value=result_val)
-            ast.copy_location(const_node, node)
-            return const_node
-
-        # If not, return the modified node
-        node.left = left
-        node.right = right
-        return node
-
-    def _contains_loop_vars(self, node):
-        """Check if an expression contains any loop variables"""
-        for subnode in ast.walk(node):
-            if isinstance(subnode, ast.Name) and subnode.id in self.substitutions:
-                return True
-        return False
-
-    def _evaluate_binop(self, left, op, right):
-        """Evaluate a binary operation on constants"""
-        if isinstance(op, ast.Add):
-            return left + right
-        elif isinstance(op, ast.Sub):
-            return left - right
-        elif isinstance(op, ast.Mult):
-            return left * right
-        elif isinstance(op, ast.Div):
-            return left / right
-        # Add other operations as needed
-        raise ValueError(f"Unsupported operation: {type(op)}")
-
-
-class UnrollingFunctionParser(FunctionParser):
+# --- The Main Classical Loop Unroller Pass ---
+class ClassicalLoopUnroller(ast.NodeTransformer):
     """
-    Extended FunctionParser that unrolls loops in quantum functions.
+    AST transformer that unrolls 'for' loops iterating over classical ranges
+    or known classical lists/tuples.
+
+    Requires classical input values to resolve iterables.
+    RESTRICTION: Loop target must be a single variable name (no tuple unpacking).
     """
 
-    def __init__(self, source):
-        # Initialize
-        self._symbol_table = {}
-        self._parameters_signature = []
-        self._return_signature = []
+    def __init__(self, classical_inputs: Dict[str, Any]):
+        self.classical_inputs = classical_inputs
+        # Create an evaluator instance internally or receive one if needed elsewhere
+        self.evaluator = ClassicalExpressionEvaluator(self.classical_inputs)
+        super().__init__()
 
-        # Parse source
-        original_ast = ast.parse(source)
+    def visit_For(self, node: ast.For) -> Union[List[ast.AST], ast.For]:
+        """
+        Visits For nodes and unrolls them if they iterate over a classical
+        range or a known classical list/tuple.
+        """
+        loop_iterable_val = None
+        iterable_node = node.iter
+        loop_target = node.target
 
-        # Extract type info
-        self._extract_type_info(original_ast)
+        # Ensure loop target is a simple name before proceeding
+        if not isinstance(loop_target, ast.Name):
+            target_repr = ast.dump(loop_target)
+            # If we don't unroll, just visit the body and return the node
+            # Or raise error if unrolling is mandatory for compatible code downstream
+            # For now, let's raise, assuming downstream requires unrolling.
+            raise ValueError(
+                f"Loop target must be a simple variable name for unrolling, got {target_repr}"
+            )
 
-        # Unroll all loops
-        unroller = TweedledumLoopUnroller(self._symbol_table)
-        unrolled_ast = unroller.visit(copy.deepcopy(original_ast))
+        # 1. Determine the iterable value if classical
+        if (
+            isinstance(iterable_node, ast.Call)
+            and isinstance(iterable_node.func, ast.Name)
+            and iterable_node.func.id == "range"
+        ):
+            # --- Handle classical range() ---
+            try:
+                range_args = []
+                for arg in iterable_node.args:
+                    val = self.evaluator.evaluate(arg)  # Use internal evaluator
+                    if val is None:
+                        raise ValueError(
+                            f"Cannot evaluate range argument: {ast.dump(arg)}"
+                        )
+                    if not isinstance(val, int):
+                        raise ValueError(
+                            f"Range arguments must evaluate to integers, got: {type(val)}"
+                        )
+                    range_args.append(val)
 
-        # Fix AST
-        ast.fix_missing_locations(unrolled_ast)
+                if len(range_args) == 1:
+                    loop_iterable_val = range(range_args[0])
+                elif len(range_args) == 2:
+                    loop_iterable_val = range(range_args[0], range_args[1])
+                elif len(range_args) == 3:
+                    loop_iterable_val = range(
+                        range_args[0], range_args[1], range_args[2]
+                    )
+                else:
+                    raise ValueError("Invalid number of arguments to range()")
+            except Exception as e:
+                # If range cannot be evaluated, maybe keep the loop? Or raise?
+                # Raising for now, assumes loops must be unrolled.
+                raise ValueError(
+                    f"Failed to evaluate classical range for unrolling: {e}"
+                ) from e
 
-        # Get unrolled source
-        self.unrolled_source = astunparse.unparse(unrolled_ast)
-        print("DEBUG: Unrolled source:")
-        print(self.unrolled_source)
+        elif (
+            isinstance(iterable_node, ast.Name)
+            and iterable_node.id in self.classical_inputs
+        ):
+            # --- Handle classical variable (list/tuple) ---
+            potential_iterable = self.classical_inputs[iterable_node.id]
+            if isinstance(potential_iterable, (list, tuple)):
+                loop_iterable_val = potential_iterable
+            # else: variable is classical but not iterable - cannot unroll
 
-        # Make sure we've completely unrolled all loops
-        # Check if there are any remaining For nodes
-        has_loops = False
-        for node in ast.walk(unrolled_ast):
-            if isinstance(node, ast.For):
-                has_loops = True
-                print(f"WARNING: Loop not fully unrolled: {astunparse.unparse(node)}")
+        elif isinstance(iterable_node, ast.Constant) and isinstance(
+            iterable_node.value, (list, tuple)
+        ):
+            # --- Handle constant list/tuple (e.g., from previous substitution) ---
+            loop_iterable_val = iterable_node.value
 
-        if has_loops:
-            print("Some loops could not be unrolled!")
-            # Add loop variables to symbol table
-            self._add_loop_variables(unrolled_ast)
+        # 2. If we determined a classical iterable, unroll the loop
+        if loop_iterable_val is not None:
+            unrolled_body = []
+            for current_loop_val in loop_iterable_val:
+                # Create substitution dictionary for the single loop variable
+                substitutions = {loop_target.id: current_loop_val}
+                replacer = LoopVariableReplacer(substitutions)
 
-        # Initialize parent with fully unrolled code
-        super().__init__(self.unrolled_source)
+                for stmt in node.body:
+                    stmt_copy = copy.deepcopy(stmt)
+                    # Apply substitution for this iteration's values
+                    transformed_stmt = replacer.visit(stmt_copy)
+                    # Recursively visit the transformed statement *using this unroller*
+                    # This handles nested loops correctly.
+                    processed_stmt_or_list = self.visit(transformed_stmt)
 
-    def _extract_type_info(self, tree):
-        """Extract type information from function signature"""
-        for node in tree.body:
-            if isinstance(node, ast.FunctionDef):
-                # Store function name
-                self.name = node.name
+                    # Add the processed statement(s) to the unrolled body
+                    if isinstance(processed_stmt_or_list, list):
+                        unrolled_body.extend(processed_stmt_or_list)
+                    elif processed_stmt_or_list is not None:
+                        unrolled_body.append(processed_stmt_or_list)
+            # Return the list of unrolled statements, replacing the original For node
+            return unrolled_body
+        else:
+            # If iterable wasn't a known classical list/tuple or range,
+            # either raise an error or return the node unchanged.
+            # Raising error assumes loops must be unrolled for downstream compatibility.
+            try:
+                iter_repr = ast.unparse(iterable_node)
+            except:
+                iter_repr = ast.dump(iterable_node)
+            raise ValueError(
+                f"Cannot unroll loop: iterable '{iter_repr}' must be a classical range() or a known classical list/tuple."
+            )
 
-                # Process arguments
-                for arg in node.args.args:
-                    if arg.annotation and isinstance(arg.annotation, ast.Call):
-                        arg_type = arg.annotation.func.id
-                        if arg_type == "BitVec" and len(arg.annotation.args) >= 1:
-                            size = ast.literal_eval(arg.annotation.args[0])
-                            self._symbol_table[arg.arg] = (
-                                (type(BitVec(1)), size),
-                                None,
-                            )
-
-    def _add_loop_variables(self, tree):
-        """Add loop variables to symbol table"""
-        for node in ast.walk(tree):
-            if isinstance(node, ast.For):
-                loop_var = node.target.id
-                if loop_var not in self._symbol_table:
-                    # Add loop variable as BitVec(1)
-                    self._symbol_table[loop_var] = ((type(BitVec(1)), 1), None)
+        # If we choose not to raise an error above for non-unrollable loops,
+        # we would process the body normally and return the original node:
+        # node.body = [self.visit(stmt) for stmt in node.body]
+        # return node

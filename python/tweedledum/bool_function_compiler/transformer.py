@@ -1,358 +1,322 @@
-import ast
-import copy
-import inspect
-from typing import Any, Dict, Optional, Set
+# bool_function_compiler/transformer.py
 
+import ast
+from typing import Any, Dict, List, Optional, Set, Union
+
+# Assuming these are correctly importable from your package structure
 from .classical_expression_evaluator import ClassicalExpressionEvaluator
 from .variable_classifier import VariableClassifier
 
 
 class QuantumCircuitTransformer(ast.NodeTransformer):
     """
-    Enhanced transformer with function calling capability.
+    Transforms the AST after meta-function inlining and loop unrolling.
+    Focuses on classical value substitution, removing purely classical logic
+    (assignments, conditional branches), and simplifying classical expressions.
+    Assumes loops have already been unrolled by a preceding pass.
     """
 
     def __init__(
         self,
         classical_inputs: Dict[str, Any],
         quantum_params: Dict[str, Any],
+        # globals_dict might be needed if evaluator needs access to more functions
         globals_dict: Dict,
         used_names: Set[str],
     ):
-        self.classical_inputs = classical_inputs
+        # Use a mutable copy of classical inputs for state updates
+        self.classical_inputs = dict(classical_inputs)
         self.quantum_params = quantum_params
         self.globals = globals_dict or {}
         self.used_names = used_names or set()
 
-        # Add quantum params to used names
         for name in quantum_params:
             self.used_names.add(name)
 
-        # Classify variables
-        self.classifier = VariableClassifier(quantum_params, classical_inputs)
+        # Classifier can run first for initial analysis
+        self.classifier = VariableClassifier(quantum_params, self.classical_inputs)
 
-        # Create expression evaluator
-        self.evaluator = ClassicalExpressionEvaluator(classical_inputs)
-
-        # Create function call handler
-        self.func_handler = FunctionCallHandler(self.globals)
-
-        # Track inlined function calls and their results
-        self.inlined_functions = []
+        # Pass the mutable dictionary to the evaluator
+        self.evaluator = ClassicalExpressionEvaluator(self.classical_inputs)
 
         super().__init__()
 
     def transform(self, tree: ast.AST) -> ast.AST:
         """
-        Apply the full transformation pipeline to an AST.
+        Apply the classical/quantum separation transformation to an AST
+        (assuming loops are already unrolled).
         """
-        # First classify all variables
+        # Run classifier on the input tree (which should be unrolled)
         self.classifier.visit(tree)
         self.classifier.summarize()
 
-        # Then transform the AST
+        # Transform the AST; state updates happen during visit
         new_tree = self.visit(tree)
 
-        # Fix line numbers and context references
+        # Ensure the final tree is valid
         ast.fix_missing_locations(new_tree)
-
         return new_tree
 
-    def visit_FunctionDef(self, node):
-        """Transform the function definition to include quantum parameters."""
-        # Create new argument list that keeps quantum parameters
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+        """
+        Transforms the function definition:
+        - Updates signature to only include quantum parameters.
+        - Processes the body, handling removed nodes (returning None/[]).
+        - Removes decorators.
+        """
+        # Create new argument list keeping only quantum parameters
         new_args = []
-
-        # Check if parameters match quantum_params
-        for name, value in self.quantum_params.items():
-            # Keep quantum parameters in the signature
-            arg = ast.arg(arg=name, annotation=ast.Constant(value=value))
+        processed_quantum_params = {}  # Store actual types/values for reference if needed
+        for name, spec in self.quantum_params.items():
+            # Note: Lambda evaluation should happen *before* the transformer runs.
+            # Here, we just construct the AST for the signature.
+            # Assuming 'spec' here is the evaluated BitVec type/object.
+            # TODO: Ensure 'spec' passed to __init__ is the processed value, not a lambda.
+            # For now, just use the name. Annotation might need adjustment.
+            # A better approach might be to get the final quantum types from
+            # the processed_quantum_params generated before calling the transformer.
+            arg_annotation = ast.Constant(
+                value=spec
+            )  # Placeholder, might need better annotation later
+            arg = ast.arg(arg=name, annotation=arg_annotation)
             new_args.append(arg)
 
-        # Update function signature
         node.args.args = new_args
+        node.args.defaults = []  # Clear defaults
+        node.args.kw_defaults = []  # Clear kw defaults
+        node.args.kwarg = None
+        node.args.posonlyargs = []
+        node.args.vararg = None
+        # Clear type comment if any
+        node.type_comment = None
 
-        # Process function body
-        node.body = [self.visit(stmt) for stmt in node.body]
+        # Process function body statements, correctly handling node removals
+        new_body = []
+        for stmt in node.body:
+            result = self.visit(stmt)
+            # visit can return: a single node, None (remove), or a list (from If)
+            if isinstance(result, list):
+                new_body.extend(
+                    result
+                )  # Add all statements if visit_If returned a list
+            elif result is not None:
+                new_body.append(result)  # Add single node, skip if None
+        node.body = new_body
 
-        # remove decorators
+        # Remove decorators and return type annotation (as it might be misleading after transform)
         node.decorator_list = []
 
         return node
 
-    def visit_Assign(self, node):
-        """Process assignment statements."""
-        # Process right side
+    def visit_Assign(self, node: ast.Assign) -> Optional[ast.Assign]:
+        """
+        Process assignment statements.
+        Evaluate RHS; if purely classical, update state and REMOVE the node.
+        If quantum, keep the node.
+        """
+        # Process right side first - this might simplify it
         node.value = self.visit(node.value)
 
-        # Process targets
-        node.targets = [self.visit(target) for target in node.targets]
+        # Try to evaluate the (potentially simplified) right-hand side
+        evaluated_value = self.evaluator.evaluate(node.value)
 
-        # Update used names
-        for target in node.targets:
-            if isinstance(target, ast.Name):
-                self.used_names.add(target.id)
+        # Check if assignment target is a simple name
+        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target = node.targets[0]
+            target_name = target.id
 
-        return node
+            if evaluated_value is not None:
+                # --- RHS is purely classical ---
+                # Update the dictionary used by the evaluator so subsequent
+                # uses of this variable *within this transformer pass* resolve correctly.
+                print(
+                    f"Transformer Update: Assigning classical value {evaluated_value} to '{target_name}' (removing Assign node)"
+                )
+                self.classical_inputs[target_name] = evaluated_value
 
-    def visit_Call(self, node):
-        """Handle function calls, including quantum function calls."""
+                # Remove this classical assignment node from the final AST
+                return None  # Returning None removes the node
+            else:
+                # --- RHS involves quantum variables ---
+                # Keep the assignment node as it's part of the quantum logic.
+                self.used_names.add(target_name)
+                # If target was previously classical, remove stale value
+                if target_name in self.classical_inputs:
+                    print(
+                        f"Transformer Info: Variable '{target_name}' reassigned quantum value, removing from classical state."
+                    )
+                    del self.classical_inputs[target_name]
+                # Return the processed node (keep it in the AST)
+                return node
+        else:
+            # Handle more complex targets (e.g., quantum subscript assign: bitvec[idx] = ...)
+            # These likely involve quantum ops or targets, so keep them.
+            node.targets = [self.visit(target) for target in node.targets]
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.used_names.add(target.id)
+            # Keep the node
+            return node
+
+    def visit_Call(self, node: ast.Call) -> ast.Call:
+        """Handle function calls."""
         # Process arguments first
         node.args = [self.visit(arg) for arg in node.args]
+        # Assuming kwargs are not used or handled if necessary
+        node.keywords = [self.visit(kw) for kw in node.keywords]
 
         if isinstance(node.func, ast.Name):
-            # Handle BitVec constructor specially
+            # Handle BitVec constructor specifically if needed for analysis/simplification
             if node.func.id == "BitVec":
                 return self._process_bitvec_constructor(node)
+            # Add handling for other known classical/quantum functions if required
+            # E.g., len() on a classical list could be evaluated:
+            # if node.func.id == 'len' and len(node.args) == 1:
+            #     arg_val = self.evaluator.evaluate(node.args[0])
+            #     if isinstance(arg_val, (list, tuple, str)):
+            #          return ast.Constant(value=len(arg_val))
 
-            # Check if this is a quantum function call
-            if node.func.id in self.globals and callable(self.globals[node.func.id]):
-                func = self.globals[node.func.id]
-                if hasattr(func, "_quantum_params"):
-                    # Process the function call
-                    result = self.func_handler.process_call(
-                        node, self.evaluator, self.used_names
-                    )
-                    if result:
-                        # Add to inlined functions list
-                        func_name = node.func.id
-                        result_var = result.id
-                        # Get transformed function
-                        from transform_function import transform_function
-
-                        _, func_obj = transform_function(func, {}, self.quantum_params)
-                        # Add to inlined functions
-                        self.inlined_functions.append((func_name, result_var, func_obj))
-                        return result
-
+        # Default: assume it's a quantum function call or unknown, keep node
         return node
 
-    def _process_bitvec_constructor(self, node):
-        """Handle BitVec constructor calls."""
-        # Process BitVec constructor arguments
+    def _process_bitvec_constructor(self, node: ast.Call) -> ast.Call:
+        """Handle BitVec constructor calls, evaluate size if possible."""
         # First argument should be size
         if len(node.args) >= 1:
             size_arg = node.args[0]
-            if not isinstance(size_arg, ast.Constant):
-                # Try to evaluate size
-                size_value = self.evaluator.evaluate(size_arg)
-                if size_value is not None:
+            # Ensure we visit the arg node first, it might become constant
+            visited_size_arg = self.visit(size_arg)
+            node.args[0] = visited_size_arg  # Update arg list
+            if not isinstance(visited_size_arg, ast.Constant):
+                # If still not constant, try evaluating it
+                size_value = self.evaluator.evaluate(visited_size_arg)
+                if size_value is not None and isinstance(size_value, int):
                     node.args[0] = ast.Constant(value=size_value)
+            # Can also evaluate the optional second argument if needed
+            if len(node.args) >= 2:
+                node.args[1] = self.visit(node.args[1])
 
         return node
 
-    def visit_If(self, node):
-        """Pre-evaluate conditionals with classical values."""
-        # Try to evaluate the condition
-        condition_value = self.evaluator.evaluate(node.test)
+    def visit_If(self, node: ast.If) -> Optional[Union[ast.If, List[ast.AST]]]:
+        """
+        Pre-evaluate conditionals with classical values. Remove or replace
+        with the appropriate branch body.
+        """
+        # Visit the test expression first - it might get simplified
+        test_node = self.visit(node.test)
+
+        # Try to evaluate the (potentially simplified) condition
+        print(
+            f"Transformer: Evaluating IF condition: {ast.dump(test_node)}"
+        )  # Use dump for clarity
+        condition_value = self.evaluator.evaluate(test_node)
+        print(f"Transformer: Condition evaluated to: {condition_value}")
 
         if condition_value is not None:
-            # Static evaluation succeeded
-            if condition_value:
-                # Return transformed body
-                return [self.visit(stmt) for stmt in node.body]
-            elif node.orelse:
-                # Return transformed else body
-                return [self.visit(stmt) for stmt in node.orelse]
-            else:
-                # Skip this branch entirely
-                return []
-
-        # Cannot evaluate - this is likely a quantum condition
-        raise ValueError("Quantum conditions are not supported")
-
-    def visit_For(self, node):
-        """Pre-evaluate for loops with fixed ranges."""
-        # Check if the loop can be unrolled
-        if (
-            isinstance(node.iter, ast.Call)
-            and isinstance(node.iter.func, ast.Name)
-            and node.iter.func.id == "range"
-        ):
-            # Try to evaluate range arguments
-            range_args = []
-
-            for arg in node.iter.args:
-                val = self.evaluator.evaluate(arg)
-                if val is None:
-                    raise ValueError("Range arguments must be classical values")
-                range_args.append(val)
-
-            # Create range based on evaluated arguments
-            if len(range_args) == 1:
-                loop_range = range(range_args[0])
-            elif len(range_args) == 2:
-                loop_range = range(range_args[0], range_args[1])
-            elif len(range_args) == 3:
-                loop_range = range(range_args[0], range_args[1], range_args[2])
-            else:
-                raise ValueError("Invalid number of arguments to range()")
-
-            # Unroll the loop
-            unrolled_body = []
-            for i in loop_range:
-                # For each iteration, make a copy of the body
+            # --- Static evaluation succeeded ---
+            if condition_value:  # Condition is True, process and return body
+                print("Transformer: IF condition True, processing body.")
+                new_body = []
                 for stmt in node.body:
-                    # Clone statement to avoid modifying original
-                    stmt_copy = copy.deepcopy(stmt)
+                    result = self.visit(stmt)
+                    if isinstance(result, list):
+                        new_body.extend(result)
+                    elif result is not None:
+                        new_body.append(result)
+                return new_body  # Return list of statements
+            elif node.orelse:  # Condition is False, process and return orelse
+                print("Transformer: IF condition False, processing orelse.")
+                new_orelse = []
+                for stmt in node.orelse:
+                    result = self.visit(stmt)
+                    if isinstance(result, list):
+                        new_orelse.extend(result)
+                    elif result is not None:
+                        new_orelse.append(result)
+                return new_orelse  # Return list of statements
+            else:  # Condition is False, no orelse, remove the If node
+                print("Transformer: IF condition False, no orelse, removing node.")
+                return None  # Return None to remove
+        else:
+            # --- Cannot evaluate classically ---
+            # This implies the condition involves quantum variables.
+            # Raise error as quantum conditions are not supported in standard If.
+            condition_str = ast.dump(test_node)
+            raise ValueError(
+                f"Condition '{condition_str}' could not be evaluated classically and quantum conditions are not supported in 'if' statements."
+            )
 
-                    # Replace loop variable with its value
-                    loop_var_replacer = LoopVariableReplacer(node.target.id, i)
-                    transformed_stmt = loop_var_replacer.visit(stmt_copy)
-
-                    # Process the transformed statement
-                    processed_stmt = self.visit(transformed_stmt)
-
-                    # Add to unrolled body
-                    if isinstance(processed_stmt, list):
-                        unrolled_body.extend(processed_stmt)
-                    else:
-                        unrolled_body.append(processed_stmt)
-
-            return unrolled_body
-
-        # Only classical loops are supported
-        raise ValueError("Only for loops with classical range are supported")
-
-    def visit_BinOp(self, node):
-        """Process binary operations."""
-        # Try to evaluate as classical expression
-        result = self.evaluator.evaluate(node)
-
-        if result is not None:
-            # This is a purely classical operation - replace with constant
-            return ast.Constant(value=result)
-
-        # Process left and right sides
+    def visit_BinOp(self, node: ast.BinOp) -> Union[ast.BinOp, ast.Constant]:
+        """Process binary operations. Evaluate if purely classical."""
+        # Visit operands first
         node.left = self.visit(node.left)
         node.right = self.visit(node.right)
 
-        return node
+        # Try to evaluate the whole operation
+        result = self.evaluator.evaluate(node)
+        if result is not None:
+            # This is a purely classical operation - replace with constant
+            return ast.Constant(value=result)
+        else:
+            # Involves quantum variables, keep the operation node
+            return node
 
-    def visit_Subscript(self, node):
-        """Handle array access operations."""
-        if isinstance(node.value, ast.Name):
-            var_name = node.value.id
+    def visit_Compare(self, node: ast.Compare) -> Union[ast.Compare, ast.Constant]:
+        """Process comparison operations. Evaluate if purely classical."""
+        # Visit operands first
+        node.left = self.visit(node.left)
+        node.comparators = [self.visit(c) for c in node.comparators]
 
-            # If this is a classical array being indexed
-            if var_name in self.classical_inputs:
-                # Try to evaluate the index
-                index_value = self.evaluator.evaluate(node.slice)
+        # Try to evaluate the whole comparison
+        result = self.evaluator.evaluate(node)
+        if result is not None:
+            # Purely classical comparison
+            return ast.Constant(value=result)
+        else:
+            # Involves quantum variables, keep the comparison node
+            return node
 
-                if index_value is not None:
-                    # Get the value from the classical array
-                    array_value = self.classical_inputs[var_name]
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> Union[ast.UnaryOp, ast.Constant]:
+        """Process unary operations. Evaluate if purely classical."""
+        # Visit operand first
+        node.operand = self.visit(node.operand)
 
-                    try:
-                        # Replace with the constant value
-                        return ast.Constant(value=array_value[index_value])
-                    except (IndexError, TypeError):
-                        pass  # Fall through to default handling
+        # Try to evaluate the whole operation
+        result = self.evaluator.evaluate(node)
+        if result is not None:
+            # Purely classical operation (e.g., not True)
+            return ast.Constant(value=result)
+        else:
+            # Quantum operation (e.g., ~BitVec), keep the node
+            return node
 
-        # Regular processing
-        node.value = self.visit(node.value)
+    def visit_Subscript(
+        self, node: ast.Subscript
+    ) -> Union[ast.Subscript, ast.Constant]:
+        """Handle subscript operations. Evaluate if purely classical."""
+        # Visit the index/slice first
         node.slice = self.visit(node.slice)
-        return node
+        # Visit the value being indexed
+        node.value = self.visit(node.value)
 
-    def visit_Name(self, node):
-        """Process variable references."""
+        # Try to evaluate the whole subscript expression classically
+        evaluated_value = self.evaluator.evaluate(node)
+        if evaluated_value is not None:
+            # Classical subscript succeeded (e.g., list[index], tuple[index])
+            return ast.Constant(value=evaluated_value)
+        else:
+            # If it couldn't be fully evaluated (e.g., quantum_vec[classical_index]),
+            # return the potentially simplified subscript node
+            return node
+
+    def visit_Name(self, node: ast.Name) -> Union[ast.Name, ast.Constant]:
+        """Process variable references. Substitute if classical."""
         if isinstance(node.ctx, ast.Load):
-            # Check if this is a reference to a classical variable
+            # Check if this is a reference to a known classical variable
             if node.id in self.classical_inputs:
+                # Replace the name node with a constant node holding its value
                 return ast.Constant(value=self.classical_inputs[node.id])
-
+        # If not loading a known classical variable, or if it's a Store context,
+        # return the node as is
         return node
-
-
-class LoopVariableReplacer(ast.NodeTransformer):
-    """
-    Replaces references to loop variables with their values.
-    """
-
-    def __init__(self, loop_var: str, value: Any):
-        self.loop_var = loop_var
-        self.value = value
-        super().__init__()
-
-    def visit_Name(self, node):
-        """Replace loop variable references with constant values."""
-        if node.id == self.loop_var and isinstance(node.ctx, ast.Load):
-            return ast.Constant(value=self.value)
-        return node
-
-
-class FunctionCallHandler:
-    """Simple handler for quantum function calls."""
-
-    def __init__(self, globals_dict: Dict):
-        """
-        Initialize with the global namespace to find functions.
-
-        Args:
-            globals_dict: Global namespace dictionary
-        """
-        self.globals = globals_dict
-
-    def process_call(
-        self, call_node: ast.Call, evaluator, used_names: set
-    ) -> Optional[ast.AST]:
-        """
-        Process a function call and transform it if it's a quantum function.
-
-        Args:
-            call_node: The function call AST node
-            evaluator: ClassicalExpressionEvaluator instance
-            used_names: Set of variable names in use
-
-        Returns:
-            A new AST node if the function was transformed, None otherwise
-        """
-        if not isinstance(call_node.func, ast.Name):
-            return None
-
-        func_name = call_node.func.id
-        if func_name not in self.globals or not callable(self.globals[func_name]):
-            return None
-
-        func = self.globals[func_name]
-        if not hasattr(func, "_quantum_params"):
-            return None
-
-        # This is a quantum function call - we need to transform it
-
-        # 1. Evaluate the arguments
-        call_args = {}
-        for i, arg in enumerate(call_node.args):
-            # Try to evaluate if it's a classical expression
-            value = evaluator.evaluate(arg)
-            if value is not None:
-                call_args[f"arg_{i}"] = value
-
-        # 2. Get the quantum parameters for this function
-        quantum_params = func._quantum_params
-
-        # 3. Process any lambda functions in the quantum params
-        processed_params = {}
-        for name, param_spec in quantum_params.items():
-            if callable(param_spec) and not hasattr(param_spec, "_quantum_params"):
-                # This is a lambda - evaluate it
-                try:
-                    sig = inspect.signature(param_spec)
-                    param_names = list(sig.parameters.keys())
-                    args = [call_args.get(f"arg_{i}") for i in range(len(param_names))]
-                    processed_params[name] = param_spec(*args)
-                except Exception as e:
-                    raise ValueError(
-                        f"Error evaluating lambda in {func_name}: {str(e)}"
-                    ) from e
-            else:
-                processed_params[name] = param_spec
-
-        _, transformed_func = transform_function(func, call_args, processed_params)
-
-        # 5. Generate a unique variable name for the result
-        result_var = f"inline_{func_name}_{len(used_names)}_result"
-        used_names.add(result_var)
-
-        # 6. Return a reference to the result variable
-        return ast.Name(id=result_var, ctx=ast.Load())
