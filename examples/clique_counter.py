@@ -47,7 +47,7 @@ def parameterized_clique_counter(n: int, k: int, edges) -> BitVec(1):
 
 def oracle_from_graph(graph: nx.Graph, clique_size: int) -> QuantumCircuit:
     # get edge list
-    edges = nx.to_numpy_array(graph).flatten()
+    edges = nx.to_numpy_array(graph).flatten().tolist()
     num_nodes = graph.number_of_nodes()
 
     # generate classical function source
