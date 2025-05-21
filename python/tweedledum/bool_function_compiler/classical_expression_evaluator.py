@@ -2,6 +2,9 @@ import ast
 import logging
 from typing import Any, Dict, Optional
 
+# logger named 'classical_expression_evaluator'
+logger = logging.getLogger(__name__)
+
 
 class ClassicalExpressionEvaluator:
     """
@@ -19,7 +22,7 @@ class ClassicalExpressionEvaluator:
         try:
             # Convert the AST node to source code
             source = ast.unparse(node)
-            logging.debug(f"ClassicalEvaluator: {source}")
+            logger.debug(f"ClassicalEvaluator: {source}")
 
             # Create a safe environment with only our variables
             # This prevents arbitrary code execution

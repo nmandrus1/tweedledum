@@ -2,6 +2,9 @@ import ast
 import logging
 from typing import Any, Dict
 
+# logger named 'variable_classifier'
+logger = logging.getLogger(__name__)
+
 
 class VariableClassifier(ast.NodeVisitor):
     """
@@ -14,8 +17,6 @@ class VariableClassifier(ast.NodeVisitor):
         classical_inputs: Dict[str, Any],
         debug=False,
     ):
-        # Set up logging
-        self.logger = logging.getLogger("VariableClassifier")
         if debug:
             logging.basicConfig(
                 level=logging.DEBUG, format="%(name)s - %(levelname)s - %(message)s"
@@ -34,8 +35,8 @@ class VariableClassifier(ast.NodeVisitor):
         # Track expressions that can't be statically evaluated
         self.dynamic_expressions = set()
 
-        self.logger.debug(f"Initialized with quantum params: {self.quantum_params}")
-        self.logger.debug(f"Initialized with classical inputs: {self.classical_inputs}")
+        logger.debug(f"Initialized with quantum params: {self.quantum_params}")
+        logger.debug(f"Initialized with classical inputs: {self.classical_inputs}")
 
     def visit_Assign(self, node):
         """Classify variables from assignment statements."""
@@ -53,11 +54,11 @@ class VariableClassifier(ast.NodeVisitor):
 
         try:
             value_str = ast.unparse(node.value)
-            self.logger.debug(
+            logger.debug(
                 f"Assignment{line_info}: {value_str} -> {'quantum' if is_quantum_expr else 'classical'}"
             )
         except:
-            self.logger.debug(
+            logger.debug(
                 f"Assignment{line_info}: <complex expr> -> {'quantum' if is_quantum_expr else 'classical'}"
             )
 
@@ -78,7 +79,7 @@ class VariableClassifier(ast.NodeVisitor):
                     self.derived_quantum_vars.add(var_name)
                     if var_name in self.classical_vars:
                         self.classical_vars.remove(var_name)
-                        self.logger.debug(
+                        logger.debug(
                             f"Reclassifying {var_name} from classical to quantum"
                         )
                 else:
@@ -93,11 +94,11 @@ class VariableClassifier(ast.NodeVisitor):
                     else "classical"
                 )
                 if old_classification != new_classification:
-                    self.logger.info(
+                    logger.info(
                         f"Variable {var_name} changed from {old_classification} to {new_classification}"
                     )
                 else:
-                    self.logger.debug(
+                    logger.debug(
                         f"Variable {var_name} classified as {new_classification}"
                     )
 
@@ -112,11 +113,11 @@ class VariableClassifier(ast.NodeVisitor):
                 ):
                     try:
                         index_str = ast.unparse(target.slice)
-                        self.logger.debug(
+                        logger.debug(
                             f"Quantum subscript assignment: {array_name}[{index_str}]"
                         )
                     except:
-                        self.logger.debug(
+                        logger.debug(
                             f"Quantum subscript assignment: {array_name}[<complex index>]"
                         )
 
@@ -129,9 +130,9 @@ class VariableClassifier(ast.NodeVisitor):
             self.dynamic_expressions.add(node)
             try:
                 args_str = ", ".join(ast.unparse(arg) for arg in node.args)
-                self.logger.debug(f"BitVec constructor: BitVec({args_str}) -> quantum")
+                logger.debug(f"BitVec constructor: BitVec({args_str}) -> quantum")
             except:
-                self.logger.debug(f"BitVec constructor: BitVec(...) -> quantum")
+                logger.debug(f"BitVec constructor: BitVec(...) -> quantum")
 
         self.generic_visit(node)
 
@@ -160,12 +161,12 @@ class VariableClassifier(ast.NodeVisitor):
                 left_str = ast.unparse(node.left)
                 right_str = ast.unparse(node.right)
 
-                self.logger.debug(
+                logger.debug(
                     f"Binary operation: {left_str}({('quantum' if left_quantum else 'classical')}) "
                     f"{op_str} {right_str}({('quantum' if right_quantum else 'classical')}) -> quantum"
                 )
             except:
-                self.logger.debug(f"Complex binary operation -> quantum")
+                logger.debug(f"Complex binary operation -> quantum")
 
     def visit_For(self, node):
         """Handle for loops."""
@@ -187,31 +188,27 @@ class VariableClassifier(ast.NodeVisitor):
                 self.classical_vars.add(loop_var)
                 try:
                     range_args = ", ".join(ast.unparse(arg) for arg in node.iter.args)
-                    self.logger.debug(
+                    logger.debug(
                         f"Loop variable {loop_var} in range({range_args}) -> classical"
                     )
                 except:
-                    self.logger.debug(
-                        f"Loop variable {loop_var} in range(...) -> classical"
-                    )
+                    logger.debug(f"Loop variable {loop_var} in range(...) -> classical")
             else:
                 # If iterating over quantum values, loop var is quantum
                 self.derived_quantum_vars.add(loop_var)
                 try:
                     iter_str = ast.unparse(node.iter)
-                    self.logger.debug(
-                        f"Loop variable {loop_var} in {iter_str} -> quantum"
-                    )
+                    logger.debug(f"Loop variable {loop_var} in {iter_str} -> quantum")
                 except:
-                    self.logger.debug(
+                    logger.debug(
                         f"Loop variable {loop_var} in <complex iterable> -> quantum"
                     )
 
         # Visit loop body
-        self.logger.debug(f"Entering loop body with {len(node.body)} statements")
+        logger.debug(f"Entering loop body with {len(node.body)} statements")
         for stmt in node.body:
             self.visit(stmt)
-        self.logger.debug("Exiting loop body")
+        logger.debug("Exiting loop body")
 
     def _is_quantum_expr(self, node):
         """Determine if an expression is quantum or classical."""
@@ -237,13 +234,11 @@ class VariableClassifier(ast.NodeVisitor):
 
     def summarize(self):
         """Print a summary of all variable classifications."""
-        self.logger.info("=== Variable Classification Summary ===")
-        self.logger.info(f"Quantum parameters: {sorted(self.quantum_params)}")
-        self.logger.info(
-            f"Derived quantum variables: {sorted(self.derived_quantum_vars)}"
-        )
-        self.logger.info(f"Classical variables: {sorted(self.classical_vars)}")
-        self.logger.info("====================================")
+        logger.info("=== Variable Classification Summary ===")
+        logger.info(f"Quantum parameters: {sorted(self.quantum_params)}")
+        logger.info(f"Derived quantum variables: {sorted(self.derived_quantum_vars)}")
+        logger.info(f"Classical variables: {sorted(self.classical_vars)}")
+        logger.info("====================================")
 
     def __del__(self):
         """Print summary when object is destroyed."""
