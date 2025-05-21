@@ -7,6 +7,10 @@ from typing import Any, Dict, List, Optional, Set, Union
 from .classical_expression_evaluator import ClassicalExpressionEvaluator
 from .variable_classifier import VariableClassifier
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class QuantumCircuitTransformer(ast.NodeTransformer):
     """
@@ -129,7 +133,7 @@ class QuantumCircuitTransformer(ast.NodeTransformer):
                 # --- RHS is purely classical ---
                 # Update the dictionary used by the evaluator so subsequent
                 # uses of this variable *within this transformer pass* resolve correctly.
-                print(
+                logger.info(
                     f"Transformer Update: Assigning classical value {evaluated_value} to '{target_name}' (removing Assign node)"
                 )
                 self.classical_inputs[target_name] = evaluated_value
@@ -142,7 +146,7 @@ class QuantumCircuitTransformer(ast.NodeTransformer):
                 self.used_names.add(target_name)
                 # If target was previously classical, remove stale value
                 if target_name in self.classical_inputs:
-                    print(
+                    logger.info(
                         f"Transformer Info: Variable '{target_name}' reassigned quantum value, removing from classical state."
                     )
                     del self.classical_inputs[target_name]
@@ -207,16 +211,16 @@ class QuantumCircuitTransformer(ast.NodeTransformer):
         test_node = self.visit(node.test)
 
         # Try to evaluate the (potentially simplified) condition
-        print(
+        logger.info(
             f"Transformer: Evaluating IF condition: {ast.dump(test_node)}"
         )  # Use dump for clarity
         condition_value = self.evaluator.evaluate(test_node)
-        print(f"Transformer: Condition evaluated to: {condition_value}")
+        logger.info(f"Transformer: Condition evaluated to: {condition_value}")
 
         if condition_value is not None:
             # --- Static evaluation succeeded ---
             if condition_value:  # Condition is True, process and return body
-                print("Transformer: IF condition True, processing body.")
+                logger.info("Transformer: IF condition True, processing body.")
                 new_body = []
                 for stmt in node.body:
                     result = self.visit(stmt)
@@ -226,7 +230,7 @@ class QuantumCircuitTransformer(ast.NodeTransformer):
                         new_body.append(result)
                 return new_body  # Return list of statements
             elif node.orelse:  # Condition is False, process and return orelse
-                print("Transformer: IF condition False, processing orelse.")
+                logger.info("Transformer: IF condition False, processing orelse.")
                 new_orelse = []
                 for stmt in node.orelse:
                     result = self.visit(stmt)
@@ -236,7 +240,9 @@ class QuantumCircuitTransformer(ast.NodeTransformer):
                         new_orelse.append(result)
                 return new_orelse  # Return list of statements
             else:  # Condition is False, no orelse, remove the If node
-                print("Transformer: IF condition False, no orelse, removing node.")
+                logger.info(
+                    "Transformer: IF condition False, no orelse, removing node."
+                )
                 return None  # Return None to remove
         else:
             # --- Cannot evaluate classically ---

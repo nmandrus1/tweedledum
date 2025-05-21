@@ -1,77 +1,38 @@
+# bool_function_compiler/decorators.py
 import functools
-import inspect
-import types
+
+# Define a consistent attribute name for storing the quantum definitions
+CIRCUIT_QUANTUM_DEF_ATTR = "_circuit_quantum_definitions"
 
 
-def circuit_input(**param_specs):
+def circuit_input(**quantum_parameter_definitions):
     """
-    Decorator to specify which parameters are quantum inputs.
+    Decorator to mark a function for quantum circuit synthesis and store the
+    definitions of its quantum parameters.
+
+    The definitions are stored in an attribute (named by CIRCUIT_QUANTUM_DEF_ATTR)
+    on the decorated function object.
 
     Args:
-        **param_specs: Mapping parameter names to BitVec types or functions that return BitVec types
-                      e.g. vertices=BitVec(4) or qubits=lambda n: BitVec(n)
+        **quantum_parameter_definitions: Keyword arguments mapping quantum parameter
+            names to their specifications. Specifications can be BitVec instances
+            or lambda functions that take classical parameter values and return
+            BitVec instances.
+            Example: @circuit_input(vars=lambda n: BitVec(n), fixed_ancilla=BitVec(2))
     """
 
     def decorator(func):
-        # Store quantum parameter specs
-        func._quantum_params = param_specs
-
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            from .meta_inliner import transform_function
+            # This wrapper is called if the user *calls* the decorated function.
+            # The primary intention for compilation is to pass the `wrapper` object
+            # (which is what `func` becomes after decoration) to QuantumCircuitFunction.
+            # If called directly, it should behave like the original function.
+            return func(*args, **kwargs)
 
-            # Get function signature
-            sig = inspect.signature(func)
-
-            # Identify classical parameters from args/kwargs
-            bound_args = sig.bind(*args, **kwargs)
-            bound_args.apply_defaults()
-            classical_inputs = {}
-
-            # Extract classical inputs
-            quantum_param_names = set(param_specs.keys())
-
-            for name, value in bound_args.arguments.items():
-                if name not in quantum_param_names:
-                    classical_inputs[name] = value
-
-            # Process quantum parameters, evaluating lambdas if necessary
-            processed_quantum_params = {}
-            for name, spec in param_specs.items():
-                # Check if this is a lambda function
-                if isinstance(spec, types.LambdaType):
-                    # Get the parameter names of the lambda
-                    lambda_sig = inspect.signature(spec)
-                    lambda_param_names = list(lambda_sig.parameters.keys())
-
-                    # Get the corresponding values from classical_inputs
-                    lambda_args = []
-                    for param_name in lambda_param_names:
-                        if param_name not in classical_inputs:
-                            raise ValueError(
-                                f"Lambda parameter '{param_name}' not found in classical inputs. "
-                                f"Available inputs: {list(classical_inputs.keys())}"
-                            )
-                        lambda_args.append(classical_inputs[param_name])
-
-                    # Evaluate the lambda with the correct arguments
-                    try:
-                        processed_quantum_params[name] = spec(*lambda_args)
-                    except Exception as e:
-                        raise ValueError(
-                            f"Error evaluating lambda for parameter '{name}': {str(e)}"
-                        ) from e
-                else:
-                    # Not a lambda, use as is
-                    processed_quantum_params[name] = spec
-
-            # Generate specialized quantum-only function
-            specialized_func = transform_function(
-                func, classical_inputs, processed_quantum_params
-            )
-
-            return specialized_func
-
+        # Attach the quantum parameter definitions to the wrapper object.
+        # This is what QuantumCircuitFunction will access.
+        setattr(wrapper, CIRCUIT_QUANTUM_DEF_ATTR, quantum_parameter_definitions)
         return wrapper
 
     return decorator

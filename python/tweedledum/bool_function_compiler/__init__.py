@@ -2,12 +2,19 @@
 # Part of Tweedledum Project.  This file is distributed under the MIT License.
 # See accompanying file /LICENSE for details.
 # -------------------------------------------------------------------------------
+from tweedledum.bool_function_compiler import (
+    classical_expression_evaluator,
+    transformer,
+    variable_classifier,
+)
 from .bitvec import BitVec
 from .bool_function import BoolFunction
-from .meta_inliner import TweedledumMetaInliner
 
 # Compiler 2.0
+from .quantum_circuit_function import QuantumCircuitFunction
 from .decorators import circuit_input
+
+import logging
 
 from tweedledum.ir import Circuit
 from tweedledum.operators import X, H
@@ -27,6 +34,30 @@ _METHOD_TO_CALLABLE = {
     "spectrum": spectrum_synth,
     "xag": xag_synth,
 }
+
+
+def setup_logging(tweedledum_level=logging.DEBUG):
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.WARNING)
+
+    # Create a handler (e.g., StreamHandler for console output)
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    handler.setFormatter(formatter)
+    root_logger.addHandler(handler)
+
+    # 2. Get specific loggers and set their levels lower
+    classical_expression_evaluator_logger = logging.getLogger(
+        "classical_expression_evaluator"
+    )
+    variable_classifier_logger = logging.getLogger("variable_classifier")
+    transformer_logger = logging.getLogger("transformer")
+
+    classical_expression_evaluator_logger.setLevel(tweedledum_level)
+    variable_classifier_logger.setLevel(tweedledum_level)
+    transformer_logger.setLevel(tweedledum_level)
 
 
 def bitflip_circuit(f: BoolFunction, method: str, config: dict() = {}):
