@@ -3,8 +3,13 @@
 | See accompanying file /LICENSE for details.
 *-----------------------------------------------------------------------------*/
 #include <pybind11/pybind11.h>
+#include <string>
 #include <tweedledum/Utils/Cut.h>
 #include <tweedledum/Utils/LinPhasePoly.h>
+#include <mockturtle/io/write_dot.hpp>
+#include <mockturtle/networks/xag.hpp>
+
+#include <string>
 
 void init_utils(pybind11::module& module)
 {
@@ -21,4 +26,22 @@ void init_utils(pybind11::module& module)
         .def("cbits", &Cut::py_cbits)
         .def("qubits", &Cut::py_qubits)
         .def("instructions", &Cut::py_instructions);
+
+    // module.def("xag_export_dot",
+    //            &mockturtle::write_dot<mockturtle::xag_network>,
+    //            py::arg("xag"),
+    //            py::arg("filename"),
+    //            "Export the XAG in DOT format to a file");
+
+    // Use a lambda to wrap the call to mockturtle::write_dot
+    module.def("xag_export_dot",
+               // The lambda takes the arguments you expose to Python
+               [](mockturtle::xag_network const& xag, std::string const& filename) {
+                   // Call the C++ function. C++ will handle the default argument
+                   // for the 'drawer' parameter automatically.
+                   mockturtle::write_dot(xag, filename, mockturtle::gate_dot_drawer<mockturtle::xag_network>{});
+               },
+               py::arg("xag"),           // Argument 1 for the lambda
+               py::arg("filename"),     // Argument 2 for the lambda
+               "Export the XAG in DOT format to a file"); // Docstring
 }

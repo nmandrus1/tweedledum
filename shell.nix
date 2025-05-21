@@ -17,12 +17,23 @@ pkgs.mkShell {
     
     # Configure cmake arguments
     export CMAKE_ARGS="-DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DTWEEDLEDUM_PYBINDS=ON -DTWEEDLEDUM_EXAMPLES=OFF -DTWEEDLEDUM_TESTS=OFF"
+   
+    echo "Entered Nix shell for tweedledum library..."
+    # Replace 'bash' with your shell (e.g., zsh) if needed
+    eval "$(conda shell.bash hook)"
+
+    # Use the CONDA_ENV_NAME variable inherited from direnv/calling shell.
+    # If CONDA_ENV_NAME is not set or empty, default to "tweedledum".
+    # ESCAPE the $ for Nix evaluation using ''$
+    local target_conda_env=''${CONDA_ENV_NAME:-tweedledum}
+
+    # Using printf is slightly safer than echo for printing variables
+    printf "Activating Conda environment: %s\n" "$target_conda_env"
     
-    # Use conda's Python if conda is activated
-    if [ -n "$CONDA_PREFIX" ]; then
-      export PATH="$CONDA_PREFIX/bin:$PATH"
-      export PYTHONPATH="$CONDA_PREFIX/lib/python*/site-packages:$PYTHONPATH"
-    fi
+    # Use quotes around the variable for safety
+    conda activate "$target_conda_env"
+
+    echo "Nix shell setup complete with Conda env active."
     
     echo "Tweedledum C++ Development Environment Ready"
     echo "-------------------------------------------"

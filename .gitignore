@@ -1,6 +1,7 @@
 **/.DS_Store
 **/.ipynb_checkpoints/
 _*/
+.env
 
 .vscode/
 .idea/
@@ -9,6 +10,7 @@ build/
 examples/**
 !examples/CMakeLists.txt
 experiments/*/
+compile_commands.json
 
 # Bunch of python crap to ignore:
 # Byte-compiled / optimized / DLL files
