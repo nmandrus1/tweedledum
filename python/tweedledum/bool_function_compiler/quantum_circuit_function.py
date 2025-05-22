@@ -6,6 +6,8 @@ from .._tweedledum.classical import optimize
 from .._tweedledum.passes import parity_decomp, linear_resynth
 from .._tweedledum.utils import xag_export_dot
 from ..qiskit.converters import to_qiskit
+from .._tweedledum.classical import TruthTable, create_from_binary_string
+from .._tweedledum import classical
 
 from .bitvec import BitVec
 from .decorators import CIRCUIT_QUANTUM_DEF_ATTR  # Import the attribute name
@@ -116,6 +118,65 @@ class QuantumCircuitFunction:
         self._truth_table = None
         self._num_input_bits = self._logic_network.num_pis()
         self._num_output_bits = self._logic_network.num_pos()
+
+    def _format_simulation_result(self, sim_result):
+        i = 0
+        result = list()
+        for type_, size in self._return_signature:
+            tmp = sim_result[i : i + size]
+            result.append(type_(size, tmp[::-1]))
+            i += size
+        if len(result) == 1:
+            return result[0]
+        return tuple(result)
+
+    def simulate(self, *argv):
+        if len(argv) != self.num_inputs():
+            raise RuntimeError(
+                f"The function requires {self.num_inputs()}. "
+                f"It's signature is: {self._parameters_signature}"
+            )
+        input_str = str()
+        for i, arg in enumerate(argv):
+            arg_type = (type(arg), len(arg))
+            if arg_type != self._parameters_signature[i]:
+                raise TypeError(
+                    f"Wrong argument type. Argument {i} "
+                    f"expected: {self._parameters_signature[i]}, "
+                    f"got: {arg_type}"
+                )
+            arg_str = str(arg)
+            input_str += arg_str[::-1]
+
+        # If the truth table was already computed, we just need to look for the
+        # result of this particular input
+        if self._truth_table != None:
+            position = int(input_str[::-1], base=2)
+            sim_result = "".join([str(int(tt[position])) for tt in self._truth_table])
+        else:
+            input_vector = [bool(int(i)) for i in input_str]
+            sim_result = classical.simulate(self._logic_network, input_vector)
+            sim_result = "".join([str(int(i)) for i in sim_result])
+
+        return self._format_simulation_result(sim_result)
+
+    def simulate_all(self):
+        if self._truth_table == None:
+            self._truth_table = classical.simulate(self._logic_network)
+
+        result = list()
+        for position in range(2 ** self._logic_network.num_pis()):
+            sim_result = "".join([str(int(tt[position])) for tt in self._truth_table])
+            result.append(self._format_simulation_result(sim_result))
+
+        return result
+
+    def truth_table(self, output_bit: int):
+        if not isinstance(output_bit, int):
+            raise TypeError("Parameter output must be an integer")
+        if self._truth_table == None:
+            self.simulate_all()
+        return self._truth_table[output_bit]
 
     def logic_network(self):
         return self._logic_network
