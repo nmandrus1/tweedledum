@@ -5,12 +5,41 @@
 #include <mockturtle/algorithms/exorcism.hpp>
 #include <mockturtle/io/aiger_reader.hpp>
 #include <mockturtle/io/dimacs_reader.hpp>
+#include <mockturtle/io/write_dimacs.hpp>
 #include <mockturtle/io/verilog_reader.hpp>
 #include <mockturtle/io/write_verilog.hpp>
 #include <mockturtle/networks/xag.hpp>
+#include <mockturtle/networks/xmg.hpp>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <mockturtle/utils/network_utils.hpp>
+
+// Create an XMG from an XAG
+mockturtle::xmg_network xmg_from_xag(mockturtle::xag_network const& xag){
+    // create host network
+    mockturtle::xmg_network xmg_dest;
+
+    // 2. Create primary inputs in the destination XMG corresponding to PIs in XAG
+    //    and collect their signals for insert_ntk.
+    std::vector<mockturtle::xmg_network::signal> xmg_pi_signals;
+    xag.foreach_pi([&]([[maybe_unused]] auto const& xag_pi_node, auto i){
+        // Try to copy PI names 
+        xmg_pi_signals.push_back(xmg_dest.create_pi());
+    });
+
+    // from network_utils.h
+    // 3. Use insert_ntk to copy the XAG structure into the XMG
+    //    The lambda function at the end is called for each PO of the XAG.
+    //    It receives the corresponding signal in the XMG, which we then use
+    //    to create a PO in the XMG.
+    mockturtle::insert_ntk(xmg_dest, xmg_pi_signals.begin(), xmg_pi_signals.end(), xag,
+        [&](mockturtle::xmg_network::signal const& xmg_po_signal){
+            xmg_dest.create_po(xmg_po_signal);
+        });
+
+    return xmg_dest;
+}
 
 void init_mockturtle(pybind11::module& module)
 {
@@ -45,7 +74,16 @@ void init_mockturtle(pybind11::module& module)
         // Node and signals
         .def("get_constant", &xag_network::get_constant)
         .def("get_node", &xag_network::get_node)
-        .def("pi_at", &xag_network::pi_at);
+        .def("pi_at", &xag_network::pi_at)
+        .def("to_xmg", &xmg_from_xag)
+        .def("to_dimacs_string", [](xag_network const& self) {
+            std::stringstream ss;
+            write_dimacs(self, ss);
+            return ss.str();
+        }, "Convert this LogicNetwork to DIMACS format string.");
+    
+    py::class_<xmg_network>(module, "XmgNetwork")
+        .def(py::init<>());
 
 
     // IO

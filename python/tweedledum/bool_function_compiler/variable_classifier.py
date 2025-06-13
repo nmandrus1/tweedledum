@@ -2,8 +2,7 @@ import ast
 import logging
 from typing import Any, Dict
 
-# logger named 'variable_classifier'
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("tweedledum.bool_function_compiler.variable_classifier")
 
 
 class VariableClassifier(ast.NodeVisitor):
@@ -15,15 +14,7 @@ class VariableClassifier(ast.NodeVisitor):
         self,
         quantum_params: Dict[str, Any],
         classical_inputs: Dict[str, Any],
-        debug=False,
     ):
-        if debug:
-            logging.basicConfig(
-                level=logging.DEBUG, format="%(name)s - %(levelname)s - %(message)s"
-            )
-        else:
-            logging.basicConfig(level=logging.INFO)
-
         self.quantum_params = set(quantum_params.keys())
         self.classical_inputs = set(classical_inputs.keys())
 

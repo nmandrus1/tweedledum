@@ -82,11 +82,6 @@ _TO_QISKIT_GATE = {
     "ising.rzz": RZZGate,
 }
 
-_logger = logging.getLogger("Converter")
-logging.basicConfig(
-    level=logging.DEBUG, format="%(name)s - %(levelname)s - %(message)s"
-)
-
 
 def _convert_qiskit_operator(gate):
     op = _TO_TWEEDLEDUM_OP.get(gate.name) or _TO_TWEEDLEDUM_OP.get(gate.base_gate.name)
@@ -178,9 +173,6 @@ def _to_qc(circuit):
         qiskit_qc.add_register(circuit.num_qubits(), circuit.num_cbits())
     else:
         qiskit_qc.add_register(circuit.num_qubits())
-
-    for instruction in circuit:
-        _logger.debug(str(instruction.kind()))
 
     for instruction in circuit:
         gate = _convert_tweedledum_op(instruction)

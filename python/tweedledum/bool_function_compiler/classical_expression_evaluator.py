@@ -2,8 +2,10 @@ import ast
 import logging
 from typing import Any, Dict, Optional
 
-# logger named 'classical_expression_evaluator'
-logger = logging.getLogger(__name__)
+
+logger = logging.getLogger(
+    "tweedledum.bool_function_compiler.classical_expression_evaluator"
+)
 
 
 class ClassicalExpressionEvaluator:

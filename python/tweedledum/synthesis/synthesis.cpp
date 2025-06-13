@@ -160,9 +160,14 @@ void init_Synthesis(pybind11::module& module)
 
 
     module.def("xag_cleanup",
-        &mockturtle::cleanup_dangling<mockturtle::xag_network, mockturtle::xag_network>,
+        &mockturtle::cleanup_dangling<mockturtle::xag_network>,
         py::arg("xag"),
         "Remove dangling nodes from XAG");
+
+    module.def("xag_cleanup2",
+        &mockturtle::cleanup_dangling_and_unused_pis<mockturtle::xag_network>,
+        py::arg("xag"),
+        "Remove dangling nodes and unused PIs from XAG");
 
     module.def("xag_synth",
         py::overload_cast<Circuit&, std::vector<Qubit> const&, std::vector<Cbit> const&, mockturtle::xag_network const&, nlohmann::json const&>(&xag_synth),

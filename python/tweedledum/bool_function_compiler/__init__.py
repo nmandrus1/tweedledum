@@ -2,29 +2,115 @@
 # Part of Tweedledum Project.  This file is distributed under the MIT License.
 # See accompanying file /LICENSE for details.
 # -------------------------------------------------------------------------------
-from tweedledum.bool_function_compiler import (
-    classical_expression_evaluator,
-    transformer,
-    variable_classifier,
-)
-from .bitvec import BitVec
-from .bool_function import BoolFunction
-
-# Compiler 2.0
-from .quantum_circuit_function import QuantumCircuitFunction
-from .decorators import circuit_input
-
 import logging
 
+from tweedledum.bool_function_compiler import (
+    classical_expression_evaluator as classical_expression_evaluator,
+)
+from tweedledum.bool_function_compiler import (
+    transformer as transformer,
+)
+from tweedledum.bool_function_compiler import (
+    variable_classifier as variable_classifier,
+)
 from tweedledum.ir import Circuit
-from tweedledum.operators import X, H
+from tweedledum.operators import H, X
 from tweedledum.synthesis import (
     lhrs_synth,
-    pprm_synth,
     pkrm_synth,
+    pprm_synth,
     spectrum_synth,
     xag_synth,
 )
+
+from .bitvec import BitVec as BitVec
+from .bool_function import BoolFunction
+from .decorators import circuit_input as circuit_input
+from typing import Union, Optional, Dict
+
+# Compiler 2.0
+from .quantum_circuit_function import QuantumCircuitFunction as QuantumCircuitFunction
+
+# Library logger name
+TWEEDLEDUM_LOGGER = "tweedledum"
+
+
+def setup_logging(
+    level: Union[int, str] = logging.WARNING,
+    module_levels: Optional[Dict[str, Union[int, str]]] = None,
+    format_string: Optional[str] = None,
+    enable_console: bool = True,
+):
+    """
+    Setup logging for Tweedledum library only.
+
+    Args:
+        level: Default logging level for all Tweedledum modules
+        module_levels: Dict of specific levels for individual modules, e.g.:
+                      {"variable_classifier": logging.DEBUG, "transformer": logging.INFO}
+        format_string: Custom format string (defaults to simple format)
+        enable_console: Whether to output to console
+
+    Examples:
+        # Quiet (default)
+        setup_logging()
+
+        # Debug everything
+        setup_logging(logging.DEBUG)
+
+        # Debug specific modules only
+        setup_logging(logging.WARNING, {
+            "variable_classifier": logging.DEBUG,
+            "transformer": logging.INFO
+        })
+    """
+    # Get the main library logger
+    tweedledum_logger = logging.getLogger(TWEEDLEDUM_LOGGER)
+
+    # Clear any existing handlers to avoid duplicates
+    tweedledum_logger.handlers.clear()
+
+    # Set the base level
+    tweedledum_logger.setLevel(level)
+
+    # Don't propagate to root logger (this is the key to not affecting other libraries)
+    tweedledum_logger.propagate = False
+
+    if enable_console:
+        # Create and configure handler
+        handler = logging.StreamHandler()
+
+        if format_string is None:
+            format_string = "%(name)s - %(levelname)s - %(message)s"
+
+        formatter = logging.Formatter(format_string)
+        handler.setFormatter(formatter)
+        handler.setLevel(level)
+
+        # Add handler to our library logger
+        tweedledum_logger.addHandler(handler)
+
+    # Set specific module levels if provided
+    if module_levels:
+        for module_name, module_level in module_levels.items():
+            module_logger = logging.getLogger(
+                f"{TWEEDLEDUM_LOGGER}.bool_function_compiler.{module_name}"
+            )
+            module_logger.setLevel(module_level)
+
+
+# Convenience functions for common use cases
+def enable_debug():
+    """Enable debug logging for all Tweedledum modules."""
+    setup_logging(logging.DEBUG)
+
+
+def silence():
+    """Silence all Tweedledum logging."""
+    setup_logging(logging.CRITICAL + 1, enable_console=False)
+
+
+setup_logging()
 
 
 _METHOD_TO_CALLABLE = {
@@ -34,30 +120,6 @@ _METHOD_TO_CALLABLE = {
     "spectrum": spectrum_synth,
     "xag": xag_synth,
 }
-
-
-def setup_logging(tweedledum_level=logging.DEBUG):
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.WARNING)
-
-    # Create a handler (e.g., StreamHandler for console output)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    handler.setFormatter(formatter)
-    root_logger.addHandler(handler)
-
-    # 2. Get specific loggers and set their levels lower
-    classical_expression_evaluator_logger = logging.getLogger(
-        "classical_expression_evaluator"
-    )
-    variable_classifier_logger = logging.getLogger("variable_classifier")
-    transformer_logger = logging.getLogger("transformer")
-
-    classical_expression_evaluator_logger.setLevel(tweedledum_level)
-    variable_classifier_logger.setLevel(tweedledum_level)
-    transformer_logger.setLevel(tweedledum_level)
 
 
 def bitflip_circuit(f: BoolFunction, method: str, config: dict() = {}):

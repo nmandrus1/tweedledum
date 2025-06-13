@@ -1,14 +1,13 @@
 # bool_function_compiler/quantum_circuit_function.py
 import inspect
 import types  # For types.LambdaType
-from .._tweedledum.synthesis import xag_synth, xag_cleanup
-from .._tweedledum.classical import optimize
-from .._tweedledum.passes import parity_decomp, linear_resynth
+
+from .._tweedledum import classical
+from .._tweedledum.classical import TruthTable, create_from_binary_string, optimize
+from .._tweedledum.passes import linear_resynth, parity_decomp
+from .._tweedledum.synthesis import xag_cleanup2, xag_synth, pkrm_synth
 from .._tweedledum.utils import xag_export_dot
 from ..qiskit.converters import to_qiskit
-from .._tweedledum.classical import TruthTable, create_from_binary_string
-from .._tweedledum import classical
-
 from .bitvec import BitVec
 from .decorators import CIRCUIT_QUANTUM_DEF_ATTR  # Import the attribute name
 from .function_parser import FunctionParser
@@ -199,6 +198,12 @@ class QuantumCircuitFunction:
     def get_transformed_function(self):
         return self.transformed_function_obj
 
+    def _optimize_logic_network(self):
+        xag = self._logic_network
+        xag = xag_cleanup2(xag)
+        optimize(xag)
+        self._logic_network = xag_cleanup2(xag)
+
     def synthesize_quantum_circuit(
         self,
         optimize_xag=True,
@@ -209,21 +214,25 @@ class QuantumCircuitFunction:
         xag_dot_optimized_name="optimized_xag.dot",
     ):
         # generate classical function source
-        xag = self._logic_network
-
-        # XAG operations
-        xag = xag_cleanup(xag)
         if output_xag_dot:
-            xag_export_dot(xag, xag_dot_unoptimized_name)
+            xag_export_dot(self._logic_network, xag_dot_unoptimized_name)
 
         if optimize_xag:
-            optimize(xag)
+            self._optimize_logic_network()
 
         # write optimized xag to DOT format
         if output_xag_dot:
-            xag_export_dot(xag, xag_dot_optimized_name)
+            xag_export_dot(self._logic_network, xag_dot_optimized_name)
 
-        circ = xag_synth(xag)
+        # there is a small chance that tweedledum utterly fails
+        # to synthesize a graph.
+        try:
+            circ = xag_synth(self._logic_network)
+        except Exception as e:
+            print(
+                f"ERROR: {e}, tweedledum failed to synthesize a circuit, returning None"
+            )
+            return None
 
         # Circuit Optimization Passes
         if opt_parity_decomp:
@@ -232,4 +241,10 @@ class QuantumCircuitFunction:
         if opt_linear_resynth:
             circ = linear_resynth(circ)
 
+        return to_qiskit(circ, "gatelist")
+
+    def truth_table_synthesis(self):
+        if self._truth_table is None:
+            self.simulate_all()
+        circ = pkrm_synth(self._truth_table[0])
         return to_qiskit(circ, "gatelist")

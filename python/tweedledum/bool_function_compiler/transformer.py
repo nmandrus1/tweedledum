@@ -9,7 +9,7 @@ from .variable_classifier import VariableClassifier
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("tweedledum.bool_function_compiler.transformer")
 
 
 class QuantumCircuitTransformer(ast.NodeTransformer):

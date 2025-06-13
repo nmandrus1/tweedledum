@@ -410,4 +410,127 @@ Ntk cleanup_luts( Ntk const& ntk )
   return dest;
 }
 
+
+
+// Simpler version that creates a completely new network
+template<class Ntk>
+Ntk cleanup_dangling_and_unused_pis(Ntk const& ntk) {
+    // Create new network
+    Ntk dest;
+    
+    // First, just do a regular cleanup to get a clean network
+    auto cleaned = mockturtle::cleanup_dangling(ntk);
+    
+    // Now check which PIs have fanout in the cleaned network
+    std::vector<bool> pi_has_fanout(cleaned.num_pis(), false);
+    
+    // Simple fanout check - iterate through all gates
+    for (uint64_t i = 1; i < cleaned.size(); ++i) {
+        if (cleaned.is_pi(i)) continue;
+        
+        cleaned.foreach_fanin(i, [&](auto const& f) {
+            auto node = cleaned.get_node(f);
+            if (cleaned.is_pi(node)) {
+                auto pi_idx = cleaned.pi_index(node);
+                if (pi_idx < pi_has_fanout.size()) {
+                    pi_has_fanout[pi_idx] = true;
+                }
+            }
+        });
+    }
+
+    
+    // Also check if any PO directly connects to a PI
+    cleaned.foreach_po([&](auto const& f) {
+        auto node = cleaned.get_node(f);
+        if (cleaned.is_pi(node)) {
+            auto pi_idx = cleaned.pi_index(node);
+            if (pi_idx < pi_has_fanout.size()) {
+                pi_has_fanout[pi_idx] = true;
+            }
+        }
+    });
+    
+    // If all PIs are used, just return the cleaned network
+    bool all_used = true;
+    for (bool used : pi_has_fanout) {
+        if (!used) {
+            all_used = false;
+            break;
+        }
+    }
+    
+    if (all_used) {
+        return cleaned;
+    }
+    
+    // Otherwise, we need to rebuild with only used PIs
+    // This is a bit hacky but safer - we'll use cleanup_dangling's internal logic
+    // but only create the PIs we need
+    
+    std::vector<signal<Ntk>> pi_signals;
+    std::vector<uint32_t> pi_map; // maps old PI index to new PI index
+    
+    uint32_t new_pi_count = 0;
+    for (uint32_t i = 0; i < cleaned.num_pis(); ++i) {
+        if (pi_has_fanout[i]) {
+            pi_signals.push_back(dest.create_pi());
+            pi_map.push_back(new_pi_count++);
+        } else {
+            pi_map.push_back(UINT32_MAX); // marker for unused
+        }
+    }
+    
+    // Now manually copy the network structure
+    // This is safer than trying to use cleanup_dangling with partial PIs
+    node_map<signal<Ntk>, Ntk> old_to_new(cleaned);
+    
+    // Map constants
+    old_to_new[cleaned.get_constant(false)] = dest.get_constant(false);
+    if (cleaned.get_node(cleaned.get_constant(true)) != cleaned.get_node(cleaned.get_constant(false))) {
+        old_to_new[cleaned.get_constant(true)] = dest.get_constant(true);
+    }
+    
+    // Map PIs
+    cleaned.foreach_pi([&](auto const& n, auto i) {
+        if (i < pi_map.size() && pi_map[i] != UINT32_MAX) {
+            old_to_new[n] = pi_signals[pi_map[i]];
+        }
+    });
+    
+    // Copy gates in topological order
+    mockturtle::topo_view topo{cleaned};
+    topo.foreach_gate([&](auto const& n) {
+        std::vector<signal<Ntk>> children;
+        cleaned.foreach_fanin(n, [&](auto const& f) {
+            auto sig = old_to_new[cleaned.get_node(f)];
+            if (cleaned.is_complemented(f)) {
+                children.push_back(dest.create_not(sig));
+            } else {
+                children.push_back(sig);
+            }
+        });
+        
+        if (children.size() == 2) {
+            if (cleaned.is_and(n)) {
+                old_to_new[n] = dest.create_and(children[0], children[1]);
+            } else if (cleaned.is_xor(n)) {
+                old_to_new[n] = dest.create_xor(children[0], children[1]);
+            }
+        }
+    });
+    
+    // Create outputs
+    cleaned.foreach_po([&](auto const& f) {
+        auto sig = old_to_new[cleaned.get_node(f)];
+        if (cleaned.is_complemented(f)) {
+            dest.create_po(dest.create_not(sig));
+        } else {
+            dest.create_po(sig);
+        }
+    });
+    
+    return dest;
+}
+
 } // namespace mockturtle
