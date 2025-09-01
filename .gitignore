@@ -2,6 +2,8 @@
 **/.ipynb_checkpoints/
 _*/
 .env
+.envrc
+.cache
 
 .vscode/
 .idea/

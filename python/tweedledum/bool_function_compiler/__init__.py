@@ -5,14 +5,20 @@
 import logging
 
 from tweedledum.bool_function_compiler import (
-    classical_expression_evaluator as classical_expression_evaluator,
-)
-from tweedledum.bool_function_compiler import (
     transformer as transformer,
-)
-from tweedledum.bool_function_compiler import (
     variable_classifier as variable_classifier,
+    classical_expression_evaluator as classical_expression_evaluator,
+    cnf_converter as cnf_converter,
 )
+
+# Export the main conversion functions for direct use
+from .cnf_converter import (
+    extract_3sat_from_ast,
+    CNFConverter,
+    BooleanExpressionExtractor,
+    calculate_clause_ratio,
+)
+
 from tweedledum.ir import Circuit
 from tweedledum.operators import H, X
 from tweedledum.synthesis import (

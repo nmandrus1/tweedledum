@@ -1,6 +1,7 @@
 # bool_function_compiler/quantum_circuit_function.py
 import inspect
 import types  # For types.LambdaType
+from typing import Tuple, List, Dict, Any
 
 from .._tweedledum import classical
 from .._tweedledum.classical import TruthTable, create_from_binary_string, optimize
@@ -248,3 +249,104 @@ class QuantumCircuitFunction:
             self.simulate_all()
         circ = pkrm_synth(self._truth_table[0])
         return to_qiskit(circ, "gatelist")
+
+    def to_3sat(self) -> Tuple[List[List[int]], Dict[str, int], float]:
+        """
+        Convert the quantum circuit function to 3-SAT representation.
+
+        This method takes the already transformed (classical values substituted,
+        loops unrolled) function and converts it to a 3-SAT problem.
+
+        Returns:
+            - clauses (List[List[int]]): 3-SAT clauses where the sign of integers
+                                         indicates negation (negative = NOT)
+            - var_mapping (Dict[str, int]): Mapping from variable names to integer
+                                            identifiers used in the clauses
+            - clause_ratio (float): Clause-to-variable ratio as a complexity measure
+                                   (higher ratio typically means harder problem)
+
+        Example:
+            >>> qcf = QuantumCircuitFunction(my_bool_func, n=4)
+            >>> clauses, var_map, ratio = qcf.to_3sat()
+            >>> print(f"Generated {len(clauses)} clauses with ratio {ratio:.2f}")
+            >>> print(f"Variable mapping: {var_map}")
+        """
+        # Import the CNF converter functionality
+        from .cnf_converter import extract_3sat_from_ast, calculate_clause_ratio
+
+        # Parse the transformed source to get the AST
+        import ast
+
+        transformed_ast = ast.parse(self.transformed_source.strip())
+
+        # Extract 3-SAT representation
+        clauses, var_mapping, output_var = extract_3sat_from_ast(transformed_ast)
+
+        # Calculate complexity measure
+        if clauses:
+            num_vars = max(max(abs(lit) for lit in clause) for clause in clauses)
+        else:
+            num_vars = 0
+
+        clause_ratio = calculate_clause_ratio(clauses, num_vars)
+
+        # Log the results
+        import logging
+
+        logger = logging.getLogger(
+            "tweedledum.bool_function_compiler.quantum_circuit_function"
+        )
+        logger.info(f"3-SAT conversion for {self.original_function_object.__name__}:")
+        logger.info(f"  - Number of clauses: {len(clauses)}")
+        logger.info(f"  - Number of variables: {num_vars}")
+        logger.info(f"  - Clause-to-variable ratio: {clause_ratio:.2f}")
+        logger.info(f"  - Output variable: {output_var}")
+
+        return clauses, var_mapping, clause_ratio
+
+    def get_3sat_dimacs(self) -> str:
+        """
+        Get the 3-SAT representation in DIMACS CNF format.
+
+        DIMACS is the standard format for SAT problems, making it easy to
+        use with SAT solvers and other tools.
+
+        Returns:
+            str: DIMACS CNF format string
+
+        Example:
+            >>> qcf = QuantumCircuitFunction(my_bool_func, n=4)
+            >>> dimacs = qcf.get_3sat_dimacs()
+            >>> with open("problem.cnf", "w") as f:
+            ...     f.write(dimacs)
+        """
+        clauses, var_mapping, clause_ratio = self.to_3sat()
+
+        # Find the maximum variable index
+        if clauses:
+            num_vars = max(max(abs(lit) for lit in clause) for clause in clauses)
+        else:
+            num_vars = 0
+
+        # Build DIMACS format string
+        lines = []
+
+        # Header comments
+        lines.append(
+            f"c Generated from function: {self.original_function_object.__name__}"
+        )
+        lines.append(f"c Clause-to-variable ratio: {clause_ratio:.2f}")
+        lines.append(f"c Variable mapping:")
+        for var_name, var_id in sorted(var_mapping.items()):
+            lines.append(f"c   {var_name} -> {var_id}")
+        lines.append("c")
+
+        # Problem line
+        lines.append(f"p cnf {num_vars} {len(clauses)}")
+
+        # Clauses
+        for clause in clauses:
+            clause_str = " ".join(str(lit) for lit in clause) + " 0"
+            lines.append(clause_str)
+
+        return "\n".join(lines)
