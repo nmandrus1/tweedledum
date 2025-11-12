@@ -288,12 +288,20 @@ class FunctionParser(ast.NodeVisitor):
         return ast.literal_eval(node.value)
 
     def visit_Constant(self, node):
-        return ast.literal_eval(node)
+        # if the node is a boolean literal convert it to logic signal
+        if type(node.value) == bool:
+            return (
+                FunctionParser.types["BitVec"],
+                1,
+            ), [self._logic_network.get_constant(int(node.value))]
+        else:
+            return ast.literal_eval(node)
 
     def visit_Subscript(self, node):
         try:
             v_type, v_signals = self.visit(node.value)
             slice_ = self.visit(node.slice)
+            print(slice_)
             if isinstance(slice_, int):
                 # Return the correct type tuple format, not a BitVec object
                 return (FunctionParser.types["BitVec"], 1), [v_signals[slice_]]

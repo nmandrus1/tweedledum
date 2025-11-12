@@ -7,6 +7,25 @@ from .loop_unroller import ClassicalLoopUnroller
 from .bitvec import BitVec
 
 
+def get_source_compatible(obj):
+    """
+    Attempts to retrieve source code.
+    Checks for a custom __source__ attribute first,
+    then falls back to standard inspect.getsource().
+    """
+    # 1. Check for the custom attribute (for dynamic functions)
+    if hasattr(obj, "__source__"):
+        return obj.__source__
+
+    # 2. Fall back to standard inspection (for file-loaded functions)
+    try:
+        return inspect.getsource(obj)
+    except Exception as e:
+        # Re-raise the original error if it fails for other reasons
+        # (e.g., not a function, built-in, etc.)
+        raise e
+
+
 class TweedledumMetaInliner(ast.NodeTransformer):
     """
     AST transformer for inlining generator function calls.
@@ -78,7 +97,7 @@ def transform_function_with_meta(
         Transformed function with quantum parameters
     """
     # --- Stage 0: Preparation ---
-    source = inspect.getsource(func)
+    source = get_source_compatible(func)
     tree = ast.parse(source.strip())
     tree_copy = copy.deepcopy(tree)  # Work on a copy
 
