@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed (build modernization)
+- Builds with current compilers (tested: GCC 15, Clang 21; CI: GCC 13/14,
+  Clang 18, Apple Clang) in C++17 and C++20 mode. Added the missing
+  `<cstdint>`/`<memory>` includes that GCC 13+ requires.
+- pybind11 is no longer vendored; it comes from PyPI as a build requirement
+  (pybind11 ≥ 2.13, tested with 3.1).
+- Requires Python ≥ 3.10 (tested 3.10–3.13) and Qiskit ≥ 1.0 (tested 1.0 and
+  2.6). Dropped the `astunparse` dependency (`ast.unparse` is used instead) and
+  declared the previously missing `python-sat` dependency.
+- Vendored C++ dependencies are always used instead of whatever the system
+  provides, so builds are reproducible.
+- The C++ sources are compiled once into a static library that the Python module
+  links against, instead of being compiled twice.
+- The Python module links libstdc++ statically when possible, fixing
+  `GLIBCXX_... not found` import errors under conda.
+- Fixed Qiskit 3.0 deprecation warnings in the Qiskit converters.
+- Replaced the Nix/conda-specific `dev.sh`/`shell.nix` with a `Makefile`;
+  replaced the outdated Travis and GitHub workflows with a single CI workflow.
+- Rewrote the README installation instructions.
+
+### Fixed
+- `QuantumCircuitFunction.synthesize_quantum_circuit(optimize_xag=False)` no
+  longer fails (`xag_synth` needs a network without dangling nodes, so a
+  cleanup pass now always runs).
+
+### Tests
+- C++ tests are registered with CTest (`ctest --test-dir build/cpp`).
+- pytest now finds the Python tests (`python -m pytest` from the repo root).
+- New end-to-end tests for `QuantumCircuitFunction` that check compiled logic
+  networks and synthesized circuits against brute-force references, plus
+  smoke tests for the synthesis bindings, passes and Qiskit converters.
+- Added a `slow` marker (`pytest --run-slow`).
+- Tests for APIs that no longer exist are skipped with an explanation.
+
 
 ## [1.1.0] - 2021-06-29
 In this release there was many cosmetic changes, such as using clang-format on

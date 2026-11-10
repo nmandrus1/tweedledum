@@ -1,254 +1,276 @@
-p align="center">
-  <img src="https://cdn.rawgit.com/boschmitt/tweedledum/master/tweedledum.svg" width="128" height="128" style="margin-right: 12pt"/>
-</p>
 <p align="center">
-  <img src="https://img.shields.io/badge/license-MIT-000000.svg">
-  <a href="https://github.com/boschmitt/tweedledum/actions/workflows/macos.yml">
-    <img src="https://github.com/boschmitt/tweedledum/workflows/MacOS/badge.svg">
-  </a>
-  <a href="https://github.com/boschmitt/tweedledum/actions/workflows/ubuntu.yml">
-    <img src="https://github.com/boschmitt/tweedledum/workflows/Ubuntu/badge.svg">
-  </a>
-  <a href="https://github.com/boschmitt/tweedledum/actions/workflows/windows.yml">
-    <img src="https://github.com/boschmitt/tweedledum/workflows/Windows/badge.svg">
-  </a>
-  <a href="https://github.com/boschmitt/tweedledum/actions/workflows/build_wheels.yml.yml">
-    <img src="https://github.com/boschmitt/tweedledum/actions/workflows/build_wheels.yml/badge.svg">
-  </a>
+  <img src="tweedledum.svg" width="128" height="128"/>
 </p>
 
-    /!\ (Warning) If you have used tweedledum before: the master branch history is broken.
-    /!\ The new master branch is a completely rewrite of the library. The old version can be found
-    /!\ on **alpha** branch. (Sorry for the inconvenience!!---but it is for a great cause)
+# tweedledum (research fork)
 
-**tweedledum** is a library for synthesis, compilation, and optimization of
-quantum circuits.  The library is written to be scalable up to problem sizes in
-which quantum circuits outperform classical ones. Also, it is meant to be used
-both independently and alongside established tools.
+**tweedledum** is a C++ library, with Python bindings, for the synthesis,
+compilation and optimization of quantum circuits.  This fork adds a
+**Boolean-function compiler** (`tweedledum.bool_function_compiler`) that turns
+ordinary, parameterised Python functions into reversible quantum circuits
+(oracles) that can be exported to Qiskit.
 
+```python
+from tweedledum import BitVec
+from tweedledum.bool_function_compiler import QuantumCircuitFunction, circuit_input
 
-Its design is guided by three mantras:
+@circuit_input(x=lambda n: BitVec(n))
+def parity(n: int) -> BitVec(1):
+    p = BitVec(1, 0)
+    for i in range(n):        # classical loop: unrolled at compile time
+        p = p ^ x[i]
+    return p
 
-- __Gotta run fast__: execution-time performance is a priority.
-
-- __Your compiler, your rules__.  You know better. At least, Tweedledum 
-hopes so! The library provides a standard set of operators that can be easily 
-extended (thanks to some type-erasure black magic).  However, the library will 
-leave your operators completely alone if you don't write passes that 
-specifically manipulate them.  Furthermore, Tweedledum will rarely take any
-decision in your behalf, i.e., it does not provide generic methods to optimize
-or synthesize circuits, you need to specifically call the algorithms you want.
-
-- __Opinionated, but not stubborn__.  Many passes and synthesis algorithms have
-many configuration parameters.  Tweedledum comes with reasonable defaults and 
-curated opinions of what value such parameters should take.  But in the end,
-it all up to you.
-
-__Corollary__:  Because of it's flexibility, Tweedledum is capable of accepting
-gates/operators that are defined as python classes.  Indeed, any pythonic 
-framework can use the library as a circuit manager.  Meaning that the library 
-can be used to slowly transition the core and performance sensitive parts of a 
-pythonic framework to C++, while maintaining the capability of users to develop
-passes in python.
-
-# Installation
-
-[Known issues](#known-issues) with _macOS High Sierra (10.13)_ and _macOS Mojave (10.14)_.
-
-`tweedledum` has two python packages that can be installed using `pip`.  For
-both, you will at least __Python 3.6__.  The `tweedledum` package contains the
-latest stable release.  You can install it from PyPI using:
-
-* Latest stable release (Linux/Mac/Windows)
-
-```
-pip install tweedledum
+oracle = QuantumCircuitFunction(parity, 4)     # n = 4
+print(oracle.simulate(BitVec(4, 0b1011)))      # -> 1
+qc = oracle.synthesize_quantum_circuit()       # a qiskit.QuantumCircuit
+print(qc)
 ```
 
-For the developers, users or researchers who are comfortable living on the 
-absolute bleeding edge, `tweedledum-dev` contains that latest developments 
-merged into the master branch.
+---
 
-* Latest (Linux/Mac/Windows)
+## Contents
 
-```
-pip install tweedledum-dev
-```
+1. [Install (5 minutes)](#install)
+2. [Check that it works](#check-that-it-works)
+3. [Running the tests](#running-the-tests)
+4. [Developing](#developing)
+5. [C++-only build](#c-only-build)
+6. [Troubleshooting](#troubleshooting)
+7. [Repository layout](#repository-layout)
 
-__Warning__: The two packages cannot be installed together.
+---
 
-# Installation from source (Development)
+## Install
 
-Installing `tweedledum` from the source, instead of using the Python Package 
-Index (PyPI) repository version, allows you to extend the latest version of the
-code. In the following, I will explain two workflows I personally use for
-development. Choose one that best suits your needs.
+You need three things: **git**, a **C++17 compiler**, and **Python ≥ 3.10**.
+The package contains C++ code, so `pip` compiles it on your machine (this
+takes 1–3 minutes).  Everything else is downloaded automatically: CMake,
+pybind11, Qiskit and the other Python dependencies come from PyPI, and the C++
+dependencies are bundled in `external/`.
 
-Alright, both workflows start the same way. You clone the repository:
-```
-git clone https://github.com/boschmitt/tweedledum.git
-```
+> **Windows users:** use [WSL 2](https://learn.microsoft.com/windows/wsl/install)
+> (Ubuntu) and follow the Ubuntu instructions inside it.  Native Windows builds
+> are not tested.
 
-## C++
-The first workflow is pure C++. We start by creating a directory to hold the 
-build output:
+### Step 1: install the system tools
 
-```
-mkdir build      
-cd build
-```
+Pick your operating system:
 
-Note that the library has a directory named `examples/`.  If we set the
-``TWEEDLEDUM_EXAMPLES`` CMake variable to ``TRUE``.  Any `.cpp` file in this
-directory will be compiled to its own executable. 
+| OS | Command |
+|----|---------|
+| **Ubuntu / Debian / WSL** | `sudo apt update && sudo apt install -y build-essential git curl` |
+| **Fedora / RHEL** | `sudo dnf install -y gcc-c++ libstdc++-static git curl` |
+| **macOS** | `xcode-select --install` (installs Apple Clang and git) |
 
-So, lets assume you have a file named `hello_world.cpp` in the `examples/`.
-First we configure our project and enable the examples:
+Compiler versions: GCC ≥ 13, Clang ≥ 18 and recent Apple Clang are tested.
+Older compilers with full C++17 support (for example GCC 11 on Ubuntu 22.04)
+will probably work, but nobody has checked.
 
-```
-cmake -DTWEEDLEDUM_EXAMPLES=TRUE ..
-```
+### Step 2: get the code
 
-If you are on a \*nix system, you should now see a Makefile in the current
-directory. Now you can build the library by running `make`. At this point you
-can build the `hello_world` executable by calling
-
-```
-make hello_world
-```
-
-Once the examples have been built you can run it:
-
-```
-./examples/hello_world
-```
-
-## C++ and Python
-
-### Prerequisites:
-The following steps are part of a modernization effort to simplify and update the build process. 
-
-**Conda**: You will need a conda environment. 
-
-**Nix**: You need to have Nix installed. Follow the instructions on the NixOS website (https://nixos.org/download.html). Make sure to follow the instructions to set up your shell correctly after installation.
-
-### Building
-
-1. Clone git repository
-```
+```bash
 git clone https://github.com/nmandrus1/tweedledum.git
 cd tweedledum
 ```
 
-2. Enter `nix-shell` environment by running `nix-shell` in the `tweedledum` directory
-```
-nix-shell
-```
+### Step 3: install the Python package
 
-This should download the listed packages in `shell.nix` and create a new shell instance with the required dependencies on the `PATH`
+**Option A: uv (recommended).**  [uv](https://docs.astral.sh/uv/) is a fast
+Python package manager.  It downloads a suitable Python for you, so you don't
+need Python headers or a particular system Python.
 
-3. Setup and activate conda environment. 
-```
-conda create -n tweedledum-dev python=3.10 scikit-build-core qiskit -y
-conda activate tweedledum-dev
-```
-
-4. Build `tweedledum`.
-```
-$ ./dev.sh debug
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # install uv (once), then open a new terminal
+uv venv --python 3.12                             # creates .venv/
+source .venv/bin/activate
+uv pip install -e ".[test]"
 ```
 
-This step should install tweedledum as a python package in this environment in editable mode, so that now any changes made in the tweedlebum repository are automatically used by the environment. If changes to the C++ code are made be sure to rebuild. 
+**Option B: plain `venv` + `pip`.**  Uses your system Python.  On Ubuntu you also
+need `sudo apt install python3-dev python3-venv`; on Fedora,
+`sudo dnf install python3-devel`.
 
-
-The second workflow is a bit of a hack.  In Python we can install libraries in
-editable mode, meaning that code changes to the _Python code_ in the project
-don't require a reinstall to be applied. 
-
-> Note: Everything below this point was from the original build process, and it has been left in for now in case it's needed. 
-
-The only problem now, is that if we change the C++ code, we will need to 
-reinstall the library.  Fortunately, there is a way to circumvent this 
-annoyance.  
-
-After installing in editable mode, you will see that in `python/tweedledum/` 
-there is a cpython shared library `_tweedledum.cpython-...` Remove this file:
-
-```sh
-rm python/tweedledum/_tweedledum.cpython-...
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e ".[test]"
 ```
 
-Now, we create a build directory as we did with the C++ workflow:
-```sh
-mkdir build      
-cd build
+**Option C: conda.**  Works, but read the
+[GLIBCXX note](#importerror-glibcxx_3432-not-found) if you are on Fedora.
+
+```bash
+conda create -n tweedledum python=3.12 -y
+conda activate tweedledum
+pip install -e ".[test]"
 ```
 
-We can manually build the cpython shared library using:
-```sh
-make _tweedledum
+`-e` installs in *editable* mode: edits to the Python files under
+`python/tweedledum/` take effect immediately.  `[test]` also installs `pytest`.
+If you only want to *use* the library, `pip install .` is enough.
+
+Using it from another project (for example a research repo with its own venv)?
+Activate that project's environment and run `pip install -e /path/to/tweedledum`.
+
+## Check that it works
+
+```bash
+python -c "import tweedledum; print('tweedledum imported OK')"
+python -m pytest            # ~150 tests, takes a few seconds
 ```
 
-This will create the library in the `build/` directory. Now, all we need to
-create a symbolic link in `python/tweedledum/` that points the library in 
-`build/`:
+## Running the tests
 
-```sh
-ln -s _tweedledum.cpython-39-darwin.so ../python/tweedledum/
+There are two test suites:
+
+| Suite | Location | What it covers | Command |
+|-------|----------|----------------|---------|
+| Python | `python/test/` | Boolean-function compiler, bindings, Qiskit converters | `python -m pytest` |
+| C++ | `tests/` | Core library: IR, passes, synthesis, mapping (Catch2) | `make test-cpp` |
+
+A `Makefile` wraps the common commands (`make help` lists them):
+
+```bash
+make dev              # editable install + test deps (same as step 3)
+make test-python      # Python tests
+make test-cpp         # configure + build + run the C++ tests (build/cpp/)
+make test             # both
+make test-python-all  # include the slow tests (wide circuits, a few minutes)
+make clean            # delete build artifacts
 ```
 
-Now, whenever we change the C++ code and rebuild the python library, the changes
-won't require a reinstall of the library to be available.
+Useful pytest invocations:
 
-# Used third-party tools
-
-The library it is built, tested, bind to python, and whatnot using many
-third-party tools and services. Thanks a lot!
-
-- [**abc**](https://github.com/berkeley-abc/abc) - ABC: System for Sequential Logic Synthesis and Formal Verification
-- [**bill**](https://github.com/lsils/bill) - C++ header-only reasoning library
-- [**Catch2**](https://github.com/catchorg/Catch2) test framework for unit-tests, TDD and BDD
-- [**CMake**](https://cmake.org) for build automation
-- [**Eigen**](https://gitlab.com/libeigen/eigen) template library for linear algebra
-- [**{fmt}**](https://github.com/fmtlib/fmt) - A modern formatting library
-- [**kitty**](https://github.com/msoeken/kitty) - truth table library 
-- [**lorina**](https://github.com/hriener/lorina) - C++ parsing library for simple formats used in logic synthesis and formal verification 
-- [**mockturtle**](https://github.com/lsils/mockturtle) - C++ logic network library
-- [**nlohmann/json**](https://github.com/nlohmann/json) - JSON for Modern C++
-- [**parallel_hashmap**](https://github.com/greg7mdp/parallel-hashmap) - A family of header-only, very fast and memory-friendly hashmap and btree containers.
-- [**percy**](https://github.com/lsils/percy) - C++ header-only exact synthesis library
-- [**pybind11**](https://github.com/pybind/pybind11) - Seamless operability between C++11 and Python
-- [**rang**](https://github.com/agauniyal/rang) - A Minimal, Header only Modern c++ library for terminal goodies
-
-## Known issues
-
-These are issues that hopefully will be fixed, but currently are unsolved.  If
-you know how to help with one of these issues, contributions are welcome!
-
-### macOS: High Sierra (10.13) and Mojave (10.14)
-
-`tweedledum` offers limited support for both systems.  While wheels might be
-available for some releases, it is strongly advised to install `tweedledum` or
-`tweedledum-dev` by building them directly from source.  For example:
-
-```sh
-CC=gcc-10 CXX=g++-10 CXXFLAGS="-static-libgcc -static-libstdc++" pip install tweedledum --no-binary :all:
+```bash
+python -m pytest python/test/test_QuantumCircuitFunction.py   # one file
+python -m pytest -k clique                                     # tests whose name matches
+python -m pytest -x --pdb                                      # stop + debug on first failure
+python -m pytest --run-slow                                    # include tests marked slow
 ```
 
-Note that such command requires a working `gcc10` installation. (It also works
-with `gcc11`, but no further tests were made.) I recommend the use of 
-[Homebrew](https://brew.sh) to install `gcc`. (Or maybe 
-[Tigerbrew](https://github.com/mistydemeo/tigerbrew))
+The C++ test binary can also run a subset directly, by name or tag:
 
-## License
+```bash
+./build/cpp/tests/run_tests "[xag_synth]"
+./build/cpp/tests/run_tests --list-tests
+```
 
-This software is licensed under the MIT licence (see 
-[LICENSE](https://github.com/boschmitt/tweedledum/blob/master/LICENSE)).
+## Developing
 
-## EPFL logic synthesis libraries
+* **Changed Python code?** Nothing to do; editable installs pick it up.
+* **Changed C++ code** (`include/`, `src/`, `python/tweedledum/**/*.cpp`)?
+  Re-run `pip install -e ".[test]"` (or `make dev`).  Rebuilds are incremental
+  and reuse `build/<python-tag>/`.
+* **Switched branches and the build acts strangely?** `make clean` and reinstall.
+* Add a Python test by creating `python/test/test_<something>.py`.  Mark slow tests
+  with `@pytest.mark.slow`.
+* Add a C++ test by creating a file under `tests/` and listing it in
+  `tests/CMakeLists.txt`.
 
-tweedledum is part of the
-[EPFL logic synthesis](https://lsi.epfl.ch/page-138455-en.html) libraries.
-The other libraries and several examples on how to use and integrate the 
-libraries can be found in the 
-[logic synthesis tool showcase](https://github.com/lsils/lstools-showcase).
+CMake options can be passed through pip, for example a debug build:
+
+```bash
+pip install -e . -Ccmake.build-type=Debug
+```
+
+## C++-only build
+
+You don't need Python for this.  You do need CMake ≥ 3.20 (`pip install cmake`
+works if your system one is older).
+
+```bash
+cmake -S . -B build/cpp -DTWEEDLEDUM_TESTS=ON      # add -DCMAKE_CXX_STANDARD=20 for C++20
+cmake --build build/cpp -j
+ctest --test-dir build/cpp --output-on-failure
+```
+
+| CMake option | Default | Meaning |
+|--------------|---------|---------|
+| `TWEEDLEDUM_TESTS` | `OFF` | Build the Catch2 test suite |
+| `TWEEDLEDUM_EXAMPLES` | `OFF` | Build every `examples/*.cpp` into its own executable |
+| `TWEEDLEDUM_PYBINDS` | `OFF` (`ON` under pip) | Build the `_tweedledum` Python extension |
+| `TWEEDLEDUM_WARNINGS_AS_ERRORS` | `OFF` | Add `-Werror` |
+| `TWEEDLEDUM_ENABLE_COVERAGE` | `OFF` | Compile with `--coverage` |
+| `TWEEDLEDUM_STATIC_LIBSTDCXX` | `ON` | Link libstdc++ statically into the Python module (Linux/GCC); see below |
+
+To use tweedledum from your own CMake project, `add_subdirectory(tweedledum)` and
+link against `tweedledum::tweedledum`.
+
+## Troubleshooting
+
+### `ImportError: ... GLIBCXX_3.4.32 not found`
+
+Your Python (usually conda's) loaded an older `libstdc++` than the compiler
+used to build tweedledum.  The build avoids this by linking `libstdc++`
+statically when the static library is available.  On Fedora/RHEL that needs
+an extra package:
+
+```bash
+sudo dnf install libstdc++-static
+make clean && pip install -e ".[test]"
+```
+
+Alternatively, inside conda: `conda install -c conda-forge libstdcxx-ng`
+(installs a newer runtime), or use uv/venv instead of conda.
+
+### `fatal error: Python.h: No such file or directory`
+
+Install the Python headers (`python3-dev` on Ubuntu, `python3-devel` on
+Fedora), or use uv (Option A), whose Pythons include them.
+
+### The build is killed or the machine freezes
+
+Compiling uses all CPU cores by default, which needs a few GB of RAM.  Limit
+parallelism:
+
+```bash
+CMAKE_BUILD_PARALLEL_LEVEL=2 pip install -e ".[test]"
+```
+
+### Something else went wrong during `pip install`
+
+pip hides the compiler output by default.  Show it with `pip install -v -e .`
+(or `uv pip install -v -e .`).  The first error printed is usually the one that
+matters.
+
+## Repository layout
+
+```
+include/tweedledum/   C++ headers (IR, operators, passes, synthesis, ...)
+src/                  C++ implementation
+python/tweedledum/    Python package; *.cpp files there are the pybind11 bindings
+  bool_function_compiler/   Python -> logic network -> quantum circuit compiler
+  qiskit/                   Converters to/from Qiskit
+python/test/          Python tests (pytest)
+tests/                C++ tests (Catch2)
+examples/             Notebooks and examples
+external/             Vendored C++ dependencies (mockturtle, kitty, fmt, Eigen, ...)
+```
+
+## Third-party libraries
+
+tweedledum bundles or uses:
+[abc](https://github.com/berkeley-abc/abc),
+[bill](https://github.com/lsils/bill),
+[Catch2](https://github.com/catchorg/Catch2),
+[Eigen](https://gitlab.com/libeigen/eigen),
+[{fmt}](https://github.com/fmtlib/fmt),
+[kitty](https://github.com/msoeken/kitty),
+[lorina](https://github.com/hriener/lorina),
+[mockturtle](https://github.com/lsils/mockturtle),
+[nlohmann/json](https://github.com/nlohmann/json),
+[parallel-hashmap](https://github.com/greg7mdp/parallel-hashmap),
+[percy](https://github.com/lsils/percy),
+[pybind11](https://github.com/pybind/pybind11),
+[rang](https://github.com/agauniyal/rang),
+[PySAT](https://github.com/pysathq/pysat) and
+[Qiskit](https://github.com/Qiskit/qiskit).
+
+## License and credits
+
+MIT licensed; see [LICENSE](LICENSE).  The original tweedledum was written by
+Bruno Schmitt as part of the
+[EPFL logic synthesis libraries](https://lsi.epfl.ch/page-138455-en.html)
+([upstream repository](https://github.com/boschmitt/tweedledum)).
