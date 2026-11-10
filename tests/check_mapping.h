@@ -4,6 +4,8 @@
 *-----------------------------------------------------------------------------*/
 #pragma once
 
+#include <cstdint>
+
 #include "tweedledum/IR/Circuit.h"
 #include "tweedledum/Operators/Standard/Swap.h"
 #include "tweedledum/Passes/Mapping/Placer/TrivialPlacer.h"

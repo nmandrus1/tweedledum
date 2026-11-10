@@ -9,6 +9,7 @@
 #include "Qubit.h"
 #include "WireStorage.h"
 
+#include <cstdint>
 #include <cassert>
 #include <fmt/format.h>
 #include <memory>

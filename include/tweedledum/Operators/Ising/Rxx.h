@@ -6,6 +6,7 @@
 
 #include "../../Utils/Matrix.h"
 
+#include <cstdint>
 #include <cmath>
 #include <string_view>
 

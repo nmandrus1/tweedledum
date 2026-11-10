@@ -4,6 +4,8 @@
 *-----------------------------------------------------------------------------*/
 #pragma once
 
+#include <cstdint>
+
 #include "../../../IR/Circuit.h"
 #include "../../../IR/Qubit.h"
 #include "../../../Operators/Reversible.h"

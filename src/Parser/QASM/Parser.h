@@ -9,6 +9,7 @@
 #include "tweedledum/IR/Circuit.h"
 #include "tweedledum/Utils/SourceManager.h"
 
+#include <cstdint>
 #include <memory>
 
 namespace tweedledum::qasm {

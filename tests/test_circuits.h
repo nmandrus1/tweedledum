@@ -4,6 +4,8 @@
 *-----------------------------------------------------------------------------*/
 #pragma once
 
+#include <cstdint>
+
 #include "tweedledum/IR/Circuit.h"
 #include "tweedledum/IR/Qubit.h"
 #include "tweedledum/Operators/All.h"

@@ -4,6 +4,8 @@
 *-----------------------------------------------------------------------------*/
 #pragma once
 
+#include <cstdint>
+
 #include "../../IR/Circuit.h"
 #include "../../Operators/Reversible.h"
 #include "../../Utils/DynamicBitset.h"

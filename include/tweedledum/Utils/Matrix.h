@@ -4,6 +4,7 @@
 *-----------------------------------------------------------------------------*/
 #pragma once
 
+#include <cstdint>
 #include <Eigen/Dense>
 #include <complex>
 #include <iostream>

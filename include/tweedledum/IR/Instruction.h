@@ -8,6 +8,7 @@
 #include "Operator.h"
 #include "WireStorage.h"
 
+#include <cstdint>
 #include <cassert>
 #include <limits>
 #include <memory>

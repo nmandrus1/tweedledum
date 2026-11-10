@@ -9,6 +9,7 @@
 #include "../../Operators/Standard/Measure.h"
 #include "../../Utils/Cut.h"
 
+#include <cstdint>
 #include <algorithm>
 #include <limits>
 #include <vector>

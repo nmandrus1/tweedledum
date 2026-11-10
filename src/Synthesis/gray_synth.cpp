@@ -102,8 +102,9 @@ inline GateList synthesize(std::vector<Qubit> const& qubits, BMatrix& matrix)
             }
             cofactor0.push_back(col);
         }
-        std::remove(state.rem_rows.begin(), state.rem_rows.end(), sel_row);
-        state.rem_rows.pop_back();
+        state.rem_rows.erase(std::remove(state.rem_rows.begin(),
+                               state.rem_rows.end(), sel_row),
+          state.rem_rows.end());
         if (!cofactor1.empty()) {
             state_stack.emplace_back(std::move(cofactor1), state.rem_rows,
               (state.qubit == num_qubits) ? sel_row : state.qubit);

@@ -6,6 +6,7 @@
 
 #include "../IR/Instruction.h"
 
+#include <cstdint>
 #include <vector>
 
 namespace tweedledum {

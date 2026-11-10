@@ -7,6 +7,7 @@
 #include "../../IR/Circuit.h"
 #include "../../IR/Instruction.h"
 
+#include <cstdint>
 #include <algorithm>
 #include <vector>
 

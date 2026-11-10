@@ -8,6 +8,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 namespace tweedledum {
 

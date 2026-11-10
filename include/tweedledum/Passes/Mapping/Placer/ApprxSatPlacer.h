@@ -9,6 +9,7 @@
 #include "../../../Target/Device.h"
 #include "../../../Target/Placement.h"
 
+#include <cstdint>
 #include <bill/sat/cardinality.hpp>
 #include <bill/sat/solver.hpp>
 #include <optional>

@@ -7,6 +7,7 @@
 #include "Cbit.h"
 #include "Qubit.h"
 
+#include <cstdint>
 #include <cassert>
 #include <limits>
 #include <string>

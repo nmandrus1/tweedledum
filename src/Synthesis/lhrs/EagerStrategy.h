@@ -6,6 +6,7 @@
 
 #include "BaseStrategy.h"
 
+#include <cstdint>
 #include <algorithm>
 #include <mockturtle/networks/klut.hpp>
 #include <mockturtle/utils/node_map.hpp>

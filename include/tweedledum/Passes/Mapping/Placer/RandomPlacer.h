@@ -8,6 +8,7 @@
 #include "../../../Target/Device.h"
 #include "../../../Target/Placement.h"
 
+#include <cstdint>
 #include <random>
 #include <vector>
 

@@ -6,6 +6,7 @@
 
 #include "../IR/Circuit.h"
 
+#include <cstdint>
 #include <vector>
 
 namespace tweedledum {

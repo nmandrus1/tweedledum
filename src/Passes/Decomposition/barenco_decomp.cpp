@@ -10,6 +10,8 @@
 #include "tweedledum/Operators/Standard/Z.h"
 #include "tweedledum/Passes/Utility/shallow_duplicate.h"
 
+#include <cstdint>
+
 namespace tweedledum {
 
 Circuit barenco_decomp(Circuit const& original, nlohmann::json const& config)

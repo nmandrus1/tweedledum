@@ -6,6 +6,7 @@
 
 #include "../IR/Qubit.h"
 
+#include <cstdint>
 #include <vector>
 
 namespace tweedledum {

@@ -7,6 +7,7 @@
 #include "../IR/Circuit.h"
 #include "../Utils/LinPhasePoly.h"
 
+#include <cstdint>
 #include <vector>
 
 // A CNOT-dihedral circuit is just a fancy way of way the circuit is built using

@@ -4,6 +4,7 @@
 *-----------------------------------------------------------------------------*/
 #pragma once
 
+#include <cstdint>
 #include <cassert>
 #include <limits>
 #include <string>

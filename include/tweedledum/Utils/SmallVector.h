@@ -4,6 +4,7 @@
 *-----------------------------------------------------------------------------*/
 #pragma once
 
+#include <memory>
 #include <algorithm>
 #include <cassert>
 #include <cstdint>

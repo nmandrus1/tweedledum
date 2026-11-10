@@ -2,6 +2,7 @@
 | Part of Tweedledum Project.  This file is distributed under the MIT License.
 | See accompanying file /LICENSE for details.
 *-----------------------------------------------------------------------------*/
+#include <cstdint>
 #include "tweedledum/Decomposition/ParityDecomposer.h"
 
 #include "tweedledum/Operators/Extension/Parity.h"

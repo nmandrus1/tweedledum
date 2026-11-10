@@ -9,6 +9,7 @@
 #include "compute_alap_layers.h"
 #include "compute_asap_layers.h"
 
+#include <cstdint>
 #include <vector>
 
 namespace tweedledum {

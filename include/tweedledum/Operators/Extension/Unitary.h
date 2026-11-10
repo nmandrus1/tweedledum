@@ -7,6 +7,7 @@
 #include "../../IR/Instruction.h"
 #include "../../Utils/Matrix.h"
 
+#include <cstdint>
 #include <cassert>
 #include <fmt/format.h>
 #include <optional>

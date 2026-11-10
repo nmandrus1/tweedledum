@@ -4,6 +4,7 @@
 *-----------------------------------------------------------------------------*/
 #pragma once
 
+#include <cstdint>
 #include <kitty/kitty.hpp>
 #include <string_view>
 

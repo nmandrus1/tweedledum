@@ -8,6 +8,8 @@
 #include "tweedledum/Operators/Standard/X.h"
 #include "tweedledum/Passes/Utility/shallow_duplicate.h"
 
+#include <cstdint>
+
 namespace tweedledum {
 
 bool BridgeDecomposer::decompose(Circuit& circuit, Instruction const& inst)

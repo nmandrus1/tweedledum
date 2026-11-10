@@ -8,6 +8,7 @@
 #include "tweedledum/Passes/Simulation/simulate_classically.h"
 #include "tweedledum/Utils/DynamicBitset.h"
 
+#include <cstdint>
 #include <catch.hpp>
 #include <kitty/kitty.hpp>
 #include <vector>

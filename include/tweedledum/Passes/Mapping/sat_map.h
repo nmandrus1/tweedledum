@@ -10,6 +10,7 @@
 #include "../Utility/shallow_duplicate.h"
 #include "placer/SatPlacer.h"
 
+#include <cstdint>
 #include <string_view>
 
 namespace tweedledum {

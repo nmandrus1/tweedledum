@@ -8,6 +8,7 @@
 #include "../Utils/LinPhasePoly.h"
 #include "../Utils/Matrix.h"
 
+#include <cstdint>
 #include <nlohmann/json.hpp>
 #include <vector>
 

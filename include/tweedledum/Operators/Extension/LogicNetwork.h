@@ -4,6 +4,7 @@
 *-----------------------------------------------------------------------------*/
 #pragma once
 
+#include <cstdint>
 #include <mockturtle/networks/xag.hpp>
 #include <string_view>
 

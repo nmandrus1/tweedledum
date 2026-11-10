@@ -6,6 +6,7 @@
 
 #include "../../Utils/Matrix.h"
 
+#include <cstdint>
 #include <string_view>
 
 namespace tweedledum::Op {

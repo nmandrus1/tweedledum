@@ -7,6 +7,7 @@
 #include "../IR/Circuit.h"
 #include "../Target/Device.h"
 
+#include <cstdint>
 #include <nlohmann/json.hpp>
 #include <vector>
 
