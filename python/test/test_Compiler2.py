@@ -78,6 +78,10 @@ golden_code = textwrap.dedent("""\
 # --- Pytest Test Function ---
 
 
+@pytest.mark.skip(
+    reason="stale test: relies on the removed `_quantum_params` attribute; "
+    "see test_QuantumCircuitFunction.py for the current API"
+)
 def test_clique_counter_3_nodes_1_edge_golden_code():
     """
     Tests the transformed code output against a golden string for a specific

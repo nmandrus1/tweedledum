@@ -2,7 +2,15 @@ import io
 from contextlib import redirect_stdout
 
 import pytest
-from tweedledum.bool_function_compiler.loop_unroller import UnrollingFunctionParser
+
+# TODO: `UnrollingFunctionParser` was replaced by `ClassicalLoopUnroller` and the
+# meta-inliner pipeline used by `QuantumCircuitFunction`.  Loop unrolling is now
+# covered end-to-end in test_QuantumCircuitFunction.py; port these cases to the
+# new API (or delete them) and remove this skip.
+try:
+    from tweedledum.bool_function_compiler.loop_unroller import UnrollingFunctionParser
+except ImportError:
+    pytest.skip("stale test: UnrollingFunctionParser no longer exists", allow_module_level=True)
 
 
 # Test helper functions
