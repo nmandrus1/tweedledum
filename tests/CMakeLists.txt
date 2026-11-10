@@ -1,6 +1,5 @@
 # Distributed under the MIT License (See accompanying file /LICENSE)
 # CMake build : tweedledum library tests
-include_directories(catch2)
 
 set(tweedledum_tests_files
     ${CMAKE_CURRENT_SOURCE_DIR}/run_tests.cpp
@@ -53,10 +52,12 @@ set(tweedledum_tests_files
 )
 
 get_filename_component(TEST_QASM_DIR qasm ABSOLUTE)
-add_compile_definitions(TEST_QASM_DIR="${TEST_QASM_DIR}")
 
 add_executable(run_tests ${tweedledum_tests_files})
-target_link_libraries(run_tests PUBLIC
-    tweedledum
-    $<$<AND:$<BOOL:${TWEEDLEDUM_ENABLE_COVERAGE}>,$<CXX_COMPILER_ID:GNU>>:gcov>
-)
+target_link_libraries(run_tests PRIVATE tweedledum tweedledum_warnings)
+target_include_directories(run_tests SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/catch2)
+target_compile_definitions(run_tests PRIVATE TEST_QASM_DIR="${TEST_QASM_DIR}")
+
+# `ctest` runs the whole Catch2 suite; use `./tests/run_tests --help` (or
+# `./tests/run_tests "[tag]"`) to run a subset directly.
+add_test(NAME tweedledum_cpp_tests COMMAND run_tests)

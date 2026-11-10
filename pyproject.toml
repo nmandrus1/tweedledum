@@ -1,59 +1,61 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
+build-backend = "scikit_build_core.build"
+
 [project]
 name = "tweedledum"
-version = "1.2.0"  
+version = "1.2.0"
 description = "A library for synthesizing and manipulating quantum circuits"
 readme = "README.md"
-license = {text = "MIT"}
-authors = [
-    {name = "Bruno Schmitt", email = "bruno.schmitt@epfl.ch"},
-]
-requires-python = ">=3.7"  # Use 3.7+ for best compatibility
+license = { text = "MIT" }
+authors = [{ name = "Bruno Schmitt", email = "bruno.schmitt@epfl.ch" }]
+requires-python = ">=3.10"
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "License :: OSI Approved :: MIT License",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "Operating System :: Microsoft :: Windows",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Compilers",
-    "Topic :: Software Development :: Libraries"
+    "Topic :: Software Development :: Libraries",
 ]
-
-
 dependencies = [
-    "qiskit",
-    "astunparse"
+    "qiskit>=1.0",
+    "python-sat>=1.8.dev0",
 ]
 
 [project.optional-dependencies]
+test = [
+    "pytest>=8",
+]
 dev = [
-  "pytest",
-  "pytest-cov",
-  "scikit-build-core"
+    "tweedledum[test]",
+    "pytest-cov",
 ]
 
-[build-system]
-requires = ["scikit-build-core"]
-build-backend = "scikit_build_core.build"
-
 [tool.scikit-build]
-cmake.minimum-version = "3.18"
-cmake.verbose = false
-build-dir = "build" 
-wheel.install-dir = "python"
+minimum-version = "build-system.requires"
+cmake.version = ">=3.20"
+cmake.build-type = "Release"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["python/tweedledum"]
+# Only ship the Python package + compiled module, not the C++ sources.
+sdist.exclude = ["build", ".cache", "**/__pycache__", "**/.ipynb_checkpoints"]
 
-# editable.rebuild = true
-editable.mode = "redirect"
+[tool.scikit-build.cmake.define]
+TWEEDLEDUM_PYBINDS = "ON"
+TWEEDLEDUM_TESTS = "OFF"
+TWEEDLEDUM_EXAMPLES = "OFF"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = "test_*.py"
+testpaths = ["python/test"]
+python_files = ["test_*.py"]
+addopts = ["-ra"]

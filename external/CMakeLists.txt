@@ -1,4 +1,34 @@
 # Distributed under the MIT License (See accompanying file /LICENSE)
+#
+# All third-party C++ dependencies are vendored in this directory so that the
+# build is reproducible and does not depend on what happens to be installed on
+# the system.  They are exposed as INTERFACE targets with SYSTEM include dirs so
+# that their warnings do not pollute the tweedledum build.
+
+# Eigen 3.3.8
+if (NOT TARGET Eigen3::Eigen3)
+  add_library(Eigen3::Eigen3 INTERFACE IMPORTED GLOBAL)
+  target_include_directories(Eigen3::Eigen3 SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/eigen)
+endif()
+
+# fmt 8.1.1 (header-only mode)
+if (NOT TARGET fmt::fmt-header-only)
+  add_library(fmt::fmt-header-only INTERFACE IMPORTED GLOBAL)
+  target_include_directories(fmt::fmt-header-only SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/fmt/include)
+  target_compile_definitions(fmt::fmt-header-only INTERFACE FMT_HEADER_ONLY=1)
+endif()
+
+# nlohmann/json 3.9.1
+if (NOT TARGET nlohmann_json)
+  add_library(nlohmann_json INTERFACE)
+  target_include_directories(nlohmann_json SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nlohmann)
+endif()
+
+# parallel-hashmap
+if (NOT TARGET phmap)
+  add_library(phmap INTERFACE)
+  target_include_directories(phmap SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/parallel_hashmap)
+endif()
 
 if (NOT TARGET abcresub)
   add_library(abcresub INTERFACE)
@@ -78,13 +108,4 @@ if (NOT TARGET mockturtle)
   add_library(mockturtle INTERFACE)
   target_include_directories(mockturtle SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/mockturtle)
   target_link_libraries(mockturtle INTERFACE kitty lorina phmap percy nlohmann_json bill libabcesop abcresub)
-endif()
-
-# pybind11 2.6.0
-if(TWEEDLEDUM_USE_EXTERNAL_PYBIND11)
-    if (NOT TARGET pybind11)
-        find_package(pybind11 REQUIRED)
-    endif()
-else()
-    add_subdirectory(pybind11 EXCLUDE_FROM_ALL)
 endif()

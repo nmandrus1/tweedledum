@@ -54,6 +54,3 @@ set(SRC
 )
 
 target_sources(tweedledum PRIVATE ${SRC})
-if(TWEEDLEDUM_PYBINDS)
-    target_sources(_tweedledum PRIVATE ${SRC})
-endif()
