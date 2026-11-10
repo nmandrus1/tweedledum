@@ -2,7 +2,6 @@ import ast
 import copy
 from typing import Any, Dict, Optional, Union
 
-import astunparse
 
 # --- Re-include necessary helpers from your sorting_network.py ---
 # (Or ensure they are importable)

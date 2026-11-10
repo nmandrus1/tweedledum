@@ -105,7 +105,10 @@ def _from_qc(qiskit_qc):
     cbits = [circuit.create_cbit() for i in range(len(qiskit_qc.clbits))]
     cbits_map = dict(zip(qiskit_qc.clbits, cbits))
 
-    for instruction, qargs, cargs in qiskit_qc.data:
+    for circuit_instruction in qiskit_qc.data:
+        instruction = circuit_instruction.operation
+        qargs = circuit_instruction.qubits
+        cargs = circuit_instruction.clbits
         op, ctrl_state = _convert_qiskit_operator(instruction)
         qs = [qubits_map.get(qubit) for qubit in qargs]
         cs = [cbits_map.get(cbit) for cbit in cargs]
@@ -162,7 +165,9 @@ def _convert_tweedledum_op(op):
         ctrl_state = ""
         for qubit in qubits[: op.num_controls()]:
             ctrl_state += "{}".format(int(qubit.polarity() == Qubit.Polarity.positive))
-        return gate.control(len(ctrl_state), ctrl_state=ctrl_state[::-1])
+        return gate.control(
+            len(ctrl_state), ctrl_state=ctrl_state[::-1], annotated=False
+        )
     return gate
 
 

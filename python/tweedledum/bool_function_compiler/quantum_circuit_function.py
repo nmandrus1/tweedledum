@@ -220,6 +220,11 @@ class QuantumCircuitFunction:
 
         if optimize_xag:
             self._optimize_logic_network()
+        else:
+            # xag_synth requires a network without dangling nodes; the raw
+            # network produced by the parser can contain some (it crashes with
+            # an out-of-range index otherwise).  Cleanup does not optimise.
+            self._logic_network = xag_cleanup2(self._logic_network)
 
         # write optimized xag to DOT format
         if output_xag_dot:

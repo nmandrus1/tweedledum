@@ -5,7 +5,6 @@
 import _ast
 import ast
 
-import astunparse
 
 from tweedledum.classical import LogicNetwork
 
@@ -87,7 +86,7 @@ class FunctionParser(ast.NodeVisitor):
                 if not isinstance(target.value, ast.Name):
                     # Ensure the base of the subscript is a variable name
                     raise ParseError(
-                        f"Cannot assign to subscript of non-variable: {astunparse.unparse(target.value)}"
+                        f"Cannot assign to subscript of non-variable: {ast.unparse(target.value)}"
                     )
 
                 base_var_name = target.value.id
@@ -301,7 +300,6 @@ class FunctionParser(ast.NodeVisitor):
         try:
             v_type, v_signals = self.visit(node.value)
             slice_ = self.visit(node.slice)
-            print(slice_)
             if isinstance(slice_, int):
                 # Return the correct type tuple format, not a BitVec object
                 return (FunctionParser.types["BitVec"], 1), [v_signals[slice_]]
